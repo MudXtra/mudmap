@@ -1,0 +1,16 @@
+/* Kiln: heat ramp and stone, beyond MudBlazor's palette. */
+:root {
+  --paper: #0b0605; --paper-2: #170e0b; --paper-3: #221814; --ink: #f2eadd; --ink-2: #d5c8b9; --muted: #b3a192; --accent: #fe6a00;
+  --heat-0: #1c1411; --heat-1: #4f1a1b; --heat-2: #8a050d; --heat-3: #e13b00; --heat-4: #ff8a00; --heat-5: #ffcf66; --heat-6: #fff9db;
+  --stone-1: #2a221e; --stone-2: #3a312c; --stone-3: #50453f; --stone-x1: #182029; --stone-x2: #262f39; --stone-x3: #39444f;
+}
+html { scrollbar-color: var(--paper-3) var(--paper); }
+.mm-loading { color: var(--muted); padding: 48px; font-family: Geist, sans-serif; }
+.mm-stage { background: var(--paper-2); border: 1px solid #2b2320; }
+.mm-fig-value { color: var(--ink); }
+.mm-figs { gap: 32px; }
+.mm-ramp { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 14px; font-weight: 500; }
+.mm-ramp i { display: block; width: 24px; height: 10px; }
+svg text { font-family: Geist, ui-sans-serif, sans-serif; }
+svg .lab, svg .area { transition: opacity 300ms ease-out; }
+@media (prefers-reduced-motion: reduce) { svg .lab, svg .area { transition: none; } }

@@ -1,0 +1,24 @@
+@* Page head: a title, one sentence and three real figures. *@
+<MudGrid Spacing="6" Class="mm-hero" Justify="Justify.SpaceBetween">
+    <MudItem xs="12" md="7">
+        <MudText Typo="Typo.h1" Class="mm-title">@Title</MudText>
+        <MudText Typo="Typo.subtitle1" Class="mm-lede">@Lede</MudText>
+    </MudItem>
+    <MudItem xs="12" md="5" Class="d-flex align-end">
+        <MudStack Row Spacing="4" Justify="Justify.FlexEnd" Class="mm-figs" Style="width:100%">
+            @foreach (var (value, label) in Figures)
+            {
+                <div class="mm-fig">
+                    <MudText Typo="Typo.h3" Class="mm-fig-value">@value</MudText>
+                    <MudText Typo="Typo.caption" Class="mm-fig-label">@label</MudText>
+                </div>
+            }
+        </MudStack>
+    </MudItem>
+</MudGrid>
+
+@code {
+    [Parameter, EditorRequired] public string Title { get; set; } = "";
+    [Parameter, EditorRequired] public string Lede { get; set; } = "";
+    [Parameter, EditorRequired] public IReadOnlyList<(string Value, string Label)> Figures { get; set; } = [];
+}

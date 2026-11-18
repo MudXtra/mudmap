@@ -1,0 +1,94 @@
+@page "/"
+@inject MapDataService DataService
+@inject ZoomService Zoom
+@inject IJSRuntime JS
+@inject NavigationManager Nav
+@implements IAsyncDisposable
+
+<PageTitle>The Mud Colony</PageTitle>
+
+<div class="mm-wrap">
+    @if (_data is null)
+    {
+        <MudProgressLinear Color="Color.Primary" Indeterminate Class="mt-8" />
+    }
+    else
+    {
+        <MapHero Title="The Mud colony is busy."
+                 Lede="Nine repos, one ant farm. Ants walk where this month’s pull requests went."
+                 Figures="_figures" />
+
+        <ZoomTrail Steps="_trail" />
+
+        <div class="mm-stage mt-2">
+            <svg @ref="_svg" viewBox="@($"0 0 {F(Width)} {F(Height)}")" role="img" aria-label="Ant colony of the Mud repositories">
+                <defs>
+                    <pattern id="grain" width="7" height="7" patternUnits="userSpaceOnUse">
+                        <circle cx="2" cy="3" r=".9" fill="var(--soil-2)" />
+                        <circle cx="5.5" cy="6" r=".6" fill="var(--paper-3)" />
+                    </pattern>
+                </defs>
+                <rect x="-600" y="-600" width="2800" height="@(600 + Surface)" fill="var(--sky)" />
+                <rect x="-600" y="@Surface" width="2800" height="1800" fill="var(--soil)" />
+                <rect x="-600" y="@Surface" width="2800" height="1800" fill="url(#grain)" opacity=".7" />
+                <path d="@_grassPath" fill="var(--grass)" />
+
+                @foreach (var t in _tunnels)
+                {
+                    <path d="@t.Path" fill="none" stroke="var(--tunnel)" stroke-width="@F(t.Width)" stroke-linecap="round" />
+                    <path class="route" d="@t.Path" fill="none" stroke="none" data-heat="@t.Heat" />
+                }
+
+                @foreach (var n in _nests)
+                {
+                    <g class="mm-hot" tabindex="0" role="button" aria-label="@($"{n.Repo.Name}: {n.Repo.Prs} pull requests. Details.")"
+                       @onclick="() => OpenRepo(n.Repo)" @onkeydown="e => KeyAsync(e, () => { OpenRepo(n.Repo); return Task.CompletedTask; })">
+                        <path d="@n.Mound" fill="var(--soil-2)" />
+                        <ellipse cx="@F(n.EntranceX)" cy="@F(Surface - 3)" rx="7" ry="3" fill="var(--tunnel)" />
+                        <rect x="@F(n.EntranceX - 80)" y="@F(Surface - 62)" width="160" height="60" fill="transparent" />
+                        <text class="lab" style="@LabelStyle" x="@F(n.EntranceX)" y="@F(Surface - 40)" text-anchor="middle"
+                              font-family="Young Serif, serif" font-size="@(n.Repo.Nodes > 10000 ? "26" : "17")"
+                              fill="@(n.Repo.Prs > 0 ? "var(--ink)" : "var(--muted)")">@n.Repo.Name</text>
+                        <text class="lab" style="@LabelStyle" x="@F(n.EntranceX)" y="@F(Surface - 22)" text-anchor="middle" font-size="12"
+                              fill="@(n.Repo.Prs > 0 ? "var(--accent)" : "var(--muted)")">@(n.Repo.Prs > 0 ? $"{n.Repo.Prs} pull requests" : "quiet this month")</text>
+                    </g>
+                }
+
+                @foreach (var c in _chambers)
+                {
+                    var current = _hood?.Key == c.Hood.Key;
+                    <g class="chamber mm-hot" style="@(_hood is null || current ? "opacity:1" : "opacity:.35")" tabindex="0" role="button"
+                       aria-label="@($"{c.Hood.Label} in {c.Hood.Repo}, {c.Hood.Prs} pull requests. Dig in.")"
+                       @onclick="() => OpenHoodAsync(c)" @onkeydown="e => KeyAsync(e, () => OpenHoodAsync(c))">
+                        <ellipse cx="@F(c.X)" cy="@F(c.Y)" rx="@F(c.Rx)" ry="@F(c.Ry)" fill="var(--tunnel)"
+                                 stroke="@(c.Hood.Prs > 0 ? "var(--accent)" : "var(--soil-2)")" stroke-width="@F(c.Hood.Prs > 0 ? 1.5 + Math.Min(3, c.Hood.Prs / 8.0) : 1.5)" />
+                        <text class="lab" style="@LabelStyle" x="@F(c.X)" y="@F(c.Y + c.Ry + 15)" text-anchor="middle" font-size="12" font-weight="600"
+                              fill="@(c.Hood.Prs > 0 ? "var(--ink)" : "var(--muted)")">@c.Hood.Label</text>
+                    </g>
+                }
+
+                @foreach (var room in _rooms)
+                {
+                    <g class="mm-hot" tabindex="0" role="button" aria-label="@($"{room.FullName}, {room.Cluster.N} code items, {room.Cluster.Prs} pull requests")"
+                       @onclick="() => OpenRoom(room)" @onkeydown="e => KeyAsync(e, () => { OpenRoom(room); return Task.CompletedTask; })">
+                        <ellipse cx="@F(room.X)" cy="@F(room.Y)" rx="@F(room.R * 1.2)" ry="@F(room.R * .7)"
+                                 fill="@(room.Cluster.Prs > 0 ? "var(--room-hot)" : "var(--paper-3)")"
+                                 stroke="@(room.Cluster.Prs > 0 ? "var(--accent)" : "var(--soil-2)")" stroke-width="@(_room == room.Cluster ? ".9" : ".5")" />
+                        <text x="@F(room.X)" y="@F(room.Y + room.FontSize * .35)" text-anchor="middle" font-size="@F(room.FontSize)" font-weight="600" fill="var(--ink)">@room.Name</text>
+                        <title>@room.FullName</title>
+                    </g>
+                }
+
+                <g id="ants" pointer-events="none"></g>
+            </svg>
+            <RoomPanel Cluster="_room" OnClose="CloseRoom" />
+            <RepoPanel Repo="_repo" WindowDays="_data.WindowDays" OnClose="() => _repo = null" />
+        </div>
+
+        <MudText Typo="Typo.body2" Class="mm-note mud-text-secondary">
+            Each nest is a repo and each chamber is a part of its code, bigger where there is more. Tunnels are calls between them,
+            including the long ones where the extension libraries reach into MudBlazor. Every ant is a pull request from the last
+            @_data.WindowDays days, and pink ones carry work that merged. Click a chamber to dig in, a room to see its code, a nest name for the repo.
+        </MudText>
+    }
+</div>

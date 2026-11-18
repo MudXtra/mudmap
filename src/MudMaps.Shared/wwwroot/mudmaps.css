@@ -1,0 +1,16 @@
+/* Shared structure for the map apps; each app's theme sets the colours. */
+html, body { overflow-x: clip; }
+.mm-wrap { max-width: 1240px; margin: 0 auto; padding: 0 32px 40px; }
+.mm-hero { padding-top: 32px; padding-bottom: 16px; }
+.mm-title { text-wrap: balance; overflow-wrap: break-word; min-width: 0; }
+.mm-lede { margin-top: 16px; max-width: 40ch; }
+.mm-fig-value { font-variant-numeric: tabular-nums lining-nums; line-height: 1; }
+.mm-trail { min-height: 48px; }
+.mm-stage { position: relative; overflow: clip; border-radius: 16px; }
+.mm-stage > svg { display: block; width: 100%; height: auto; }
+.mm-panel { position: absolute; top: 16px; right: 16px; width: min(320px, 80%); max-height: calc(100% - 32px); overflow-y: auto; overflow-x: hidden; overflow-wrap: anywhere; }
+.mm-hot { cursor: pointer; }
+.mm-hot:focus { outline: none; }
+.mm-hot:focus-visible { outline: 1.5px solid var(--mud-palette-primary); outline-offset: 2px; }
+.mm-note { max-width: 72ch; padding-top: 16px; }
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }

@@ -1,0 +1,116 @@
+@page "/"
+@inherits MapPageBase
+
+<PageTitle>The Mud system</PageTitle>
+
+<div class="mm-wrap">
+    @if (Data is null)
+    {
+        <MudProgressLinear Color="Color.Primary" Indeterminate Class="mt-8" />
+    }
+    else
+    {
+        <MapHero Title="The Mud system"
+                 Lede="Nine stars, their code in orbit. Every moon is four pull requests from this month."
+                 Figures="Figures" />
+
+        <ZoomTrail Steps="Trail" />
+
+        <div class="mm-stage mt-2">
+            <svg @ref="Svg" viewBox="@($"0 0 {F(ViewWidth)} {F(ViewHeight)}")" role="img" aria-label="Star systems of the Mud repositories">
+                <rect x="-800" y="-800" width="3200" height="2600" fill="var(--card)" />
+                @foreach (var d in _dots)
+                {
+                    <circle class="@(d.Twinkle ? "twinkle" : null)" style="@(d.Twinkle ? $"animation-delay:-{F(d.Delay)}s" : null)"
+                            cx="@F(d.X)" cy="@F(d.Y)" r="@F(d.R)" fill="var(--silver)" opacity=".5" />
+                }
+
+                @foreach (var p in _planets)
+                {
+                    <ellipse class="lab" style="@LabelStyle" cx="@F(p.Cx)" cy="@F(p.Cy)" rx="@F(p.Orbit)" ry="@F(p.Orbit * .5)"
+                             fill="none" stroke="var(--border)" stroke-width="1" opacity=".7" />
+                }
+                @foreach (var a in _arcs)
+                {
+                    <path class="lab" style="@LabelStyle" d="@a.Path" fill="none" stroke="var(--purple)" stroke-width="1.5" stroke-dasharray="4 6" opacity=".7" />
+                }
+
+                @foreach (var s in _stars)
+                {
+                    <g class="area mm-hot" style="@(CurrentHood is null ? "opacity:1" : "opacity:.12")" tabindex="0" role="button" aria-label="@($"{s.Repo.Name}: {s.Repo.Prs} pull requests. Details.")"
+                       @onclick="() => OpenRepo(s.Repo)" @onkeydown="e => KeyAsync(e, () => { OpenRepo(s.Repo); return Task.CompletedTask; })">
+                        @for (var i = 4; i >= 1; i--)
+                        {
+                            <circle cx="@F(s.X)" cy="@F(s.Y)" r="@F(s.R + i * 6)" fill="@s.Fill" opacity=".06" />
+                        }
+                        <circle cx="@F(s.X)" cy="@F(s.Y)" r="@F(s.R)" fill="@s.Fill" />
+                        <text class="lab" style="@LabelStyle" x="@F(s.X)" y="@F(s.LabelY)" text-anchor="middle" font-weight="600"
+                              font-size="@(s.Repo.Nodes > 10000 ? "18" : "13")" fill="var(--fg)">@s.Repo.Name</text>
+                        <text class="lab" style="@LabelStyle" x="@F(s.X)" y="@F(s.LabelY + 16)" text-anchor="middle" font-family="Fira Code, monospace"
+                              font-size="11" fill="var(--muted)">@(s.Repo.Prs > 0 ? $"{s.Repo.Prs} pull requests" : "quiet this month")</text>
+                    </g>
+                }
+
+                @foreach (var p in _planets)
+                {
+                    var hot = p.Hood.Prs > 0;
+                    var x0 = p.Cx + Math.Cos(p.Angle) * p.Orbit;
+                    var y0 = p.Cy + Math.Sin(p.Angle) * p.Orbit * .5;
+                    <g @key="p.Hood.Key" class="planet" data-key="@p.Hood.Key" data-cx="@F(p.Cx)" data-cy="@F(p.Cy)" data-orbit="@F(p.Orbit)"
+                       data-angle="@F(p.Angle)" data-speed="@F(p.Speed)" transform="@($"translate({F(x0)},{F(y0)})")">
+                        <g class="area mm-hot" style="@AreaStyle(p.Hood)" tabindex="0" role="button"
+                           aria-label="@($"{p.Hood.Label} in {p.Hood.Repo}, {p.Hood.Prs} pull requests. Fly in.")"
+                           @onclick="() => OpenHoodAsync(p.Hood)" @onkeydown="e => KeyAsync(e, () => OpenHoodAsync(p.Hood))">
+                            <circle r="@F(p.R + 6)" fill="transparent" />
+                            <circle r="@F(p.R)" fill="@(hot ? "var(--gold)" : "var(--cold)")" stroke="var(--card)" stroke-width="2" />
+                            @if (p.Ring)
+                            {
+                                <ellipse rx="@F(p.R * 1.8)" ry="@F(p.R * .45)" fill="none" stroke="var(--gold)" stroke-width="2" opacity=".9" />
+                            }
+                            @if (p.Moons > 0)
+                            {
+                                <g class="moons">
+                                    @for (var m = 0; m < p.Moons; m++)
+                                    {
+                                        var a = m / (double)p.Moons * Math.PI * 2;
+                                        <circle cx="@F(Math.Cos(a) * (p.R + 8))" cy="@F(Math.Sin(a) * (p.R + 8))" r="2.3" fill="var(--silver)" />
+                                    }
+                                </g>
+                            }
+                            <title>@($"{p.Hood.Label}: {p.Hood.Prs} pull requests")</title>
+                        </g>
+                        <text class="lab" style="@LabelStyle" y="@F(-p.R - (p.Moons > 0 ? 13 : 6))" text-anchor="middle" font-size="11"
+                              fill="@(hot ? "var(--fg)" : "var(--muted)")" pointer-events="none" paint-order="stroke" stroke="var(--card)" stroke-width="3">@p.Hood.Label</text>
+                    </g>
+                }
+
+                @if (CurrentHood is not null && Rooms.Count > 0)
+                {
+                    var cx = Rooms.Average(r => r.X);
+                    var cy = Rooms.Average(r => r.Y);
+                    <ellipse cx="@F(cx)" cy="@F(cy)" rx="66" ry="42" fill="var(--bg)" opacity=".92" stroke="var(--border)" stroke-width=".4" />
+                    @foreach (var room in Rooms)
+                    {
+                        var hot = room.Cluster.Prs > 0;
+                        <g class="mm-hot" tabindex="0" role="button" aria-label="@($"{room.FullName}, {room.Cluster.N} code items, {room.Cluster.Prs} pull requests")"
+                           @onclick="() => OpenRoom(room)" @onkeydown="e => KeyAsync(e, () => { OpenRoom(room); return Task.CompletedTask; })">
+                            <circle cx="@F(room.X)" cy="@F(room.Y)" r="@F(room.R * .8)" fill="@(hot ? "var(--gold)" : "var(--cold)")"
+                                    stroke="@(CurrentRoom == room.Cluster ? "var(--fg)" : "none")" stroke-width=".4" />
+                            <text x="@F(room.X)" y="@F(room.Y + room.R * .8 + room.FontSize)" text-anchor="middle" font-size="@F(room.FontSize * .85)"
+                                  fill="@(hot ? "var(--fg)" : "var(--muted)")">@room.Name</text>
+                            <title>@room.FullName</title>
+                        </g>
+                    }
+                }
+            </svg>
+            <RoomPanel Cluster="CurrentRoom" OnClose="CloseRoom" />
+            <RepoPanel Repo="CurrentRepo" WindowDays="Data.WindowDays" OnClose="CloseRepo" />
+        </div>
+
+        <MudText Typo="Typo.body2" Class="mm-note mud-text-secondary">
+            Each star is a repo and each planet a part of its code, sized by how much lives there. Gold planets had pull requests in the last
+            @Data.WindowDays days; moons circle them, and the busiest wear rings. Click a planet to fly in and see its satellites, the rooms of its code;
+            click one for its code, or a star for its repo.
+        </MudText>
+    }
+</div>

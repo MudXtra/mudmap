@@ -1,0 +1,54 @@
+[Unit]
+Description=Mud Maps service (read-only map API, live updates, hosted map apps)
+After=network-online.target
+
+[Service]
+Type=exec
+# Self-contained build, so the runtime ships with the app instead of the host's shared framework:
+#   dotnet publish src/MudMaps.Server -c Release -r linux-x64 --self-contained -o /opt/mudmaps/server
+# Check after each publish: grep -o 'runtimepack[^"]*' server/MudMaps.Server.deps.json (expect 10.0.15 or later).
+ExecStart=/opt/mudmaps/server/MudMaps.Server
+WorkingDirectory=/opt/mudmaps/server
+Environment=ASPNETCORE_ENVIRONMENT=Production
+Environment=DOTNET_CLI_TELEMETRY_OPTOUT=1
+# Where the clones and the published apps live, and the proxy path (match MUDMAPS_PATH_BASE in tools/publish.sh).
+Environment=Maps__ReposRoot=/opt/mudmaps/repos
+Environment=Maps__Sites__colony=/opt/mudmaps/site/colony
+Environment=Maps__Sites__city=/opt/mudmaps/site/city
+Environment=Maps__Sites__islands=/opt/mudmaps/site/islands
+Environment=Maps__Sites__space=/opt/mudmaps/site/space
+Environment=Maps__PathBase=/mudmap
+# Sites allowed to embed the maps in an iframe (https origins only).
+#Environment=Maps__FrameAncestors__0=https://example.org
+# GitHub token for public PR activity; exposed to the process as $CREDENTIALS_DIRECTORY/github-token only.
+LoadCredential=github-token:%h/.config/mudmaps/github-token
+Restart=on-failure
+RestartSec=10
+Nice=10
+IOSchedulingClass=idle
+MemoryMax=3G
+# Hardening: read-only view of the system; nothing to write.
+NoNewPrivileges=yes
+ProtectSystem=strict
+# Only the app, its sites and the graphs are visible: no home directory and no other shares.
+ProtectHome=tmpfs
+TemporaryFileSystem=/opt:ro
+BindReadOnlyPaths=/opt/mudmaps/server /opt/mudmaps/site /opt/mudmaps/repos
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+RestrictRealtime=yes
+RestrictNamespaces=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+CapabilityBoundingSet=
+UMask=0077
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,100 @@
+@using System.Globalization
+@* The repo highlight card: what it is, where it stands, who is driving it. *@
+@if (Repo is not null)
+{
+    var h = Repo.Highlights;
+    <MudPaper Elevation="8" Class="mm-panel pa-4" role="dialog" aria-label="@Repo.Name">
+        <MudStack Row Justify="Justify.SpaceBetween" AlignItems="AlignItems.Start">
+            <div>
+                <MudText Typo="Typo.h5">@Repo.Name</MudText>
+                @if (!string.IsNullOrWhiteSpace(h?.Description))
+                {
+                    <MudText Typo="Typo.body2" Class="mud-text-secondary mt-1">@h.Description</MudText>
+                }
+            </div>
+            <MudIconButton Icon="@Icons.Material.Filled.Close" Size="Size.Small" aria-label="Close" OnClick="OnClose" />
+        </MudStack>
+
+        @if (h?.Version is not null)
+        {
+            <MudStack Row Spacing="1" Class="mt-3" Wrap="Wrap.Wrap">
+                <MudChip T="string" Size="Size.Small" Color="Color.Primary" Class="ml-0">@h.Version</MudChip>
+                @if (h.License is not null)
+                {
+                    <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">@h.License</MudChip>
+                }
+            </MudStack>
+        }
+
+        <MudSimpleTable Dense Class="mt-2" Style="background:transparent">
+            <tbody>
+                @if (h is not null)
+                {
+                    <tr>
+                        <td>Last release</td>
+                        <td>
+                            @if (h.LatestRelease is null)
+                            {
+                                <span>none published</span>
+                            }
+                            else if (h.LatestReleaseUrl is not null)
+                            {
+                                <MudLink Href="@h.LatestReleaseUrl" Target="_blank">@h.LatestRelease</MudLink><span>, @Ago(h.LatestReleaseAt)</span>
+                            }
+                            else
+                            {
+                                <span>@h.LatestRelease, @Ago(h.LatestReleaseAt)</span>
+                            }
+                        </td>
+                    </tr>
+                    <tr><td>Last pull request</td><td>@Ago(h.LastPrAt)</td></tr>
+                    <tr>
+                        <td>Most pull requests</td>
+                        <td>
+                            @if (h.TopAuthor is null)
+                            {
+                                <span>none this month</span>
+                            }
+                            else
+                            {
+                                <MudLink Href="@($"https://github.com/{h.TopAuthor}")" Target="_blank">@h.TopAuthor</MudLink>
+                                <span>, @h.TopAuthorPrs (@h.TopAuthorMerged merged)</span>
+                            }
+                        </td>
+                    </tr>
+                }
+                <tr><td>Pull requests, last @WindowDays days</td><td>@Repo.Prs (@Repo.Merged merged)</td></tr>
+                @if (h is not null)
+                {
+                    <tr><td>Contributors, last @WindowDays days</td><td>@h.Contributors</td></tr>
+                    <tr><td>Open pull requests</td><td>@h.OpenPrs</td></tr>
+                    <tr><td>Open issues</td><td>@h.OpenIssues.ToString("N0", CultureInfo.InvariantCulture)</td></tr>
+                    <tr><td>Last commit</td><td>@Ago(h.LastCommitAt)</td></tr>
+                }
+                <tr><td>Stars@(h is null ? "" : " / forks")</td><td>@Repo.Stars.ToString("N0", CultureInfo.InvariantCulture)@(h is null ? "" : $" / {h.Forks.ToString("N0", CultureInfo.InvariantCulture)}")</td></tr>
+                <tr><td>Mapped code items</td><td>@Repo.Nodes.ToString("N0", CultureInfo.InvariantCulture)</td></tr>
+            </tbody>
+        </MudSimpleTable>
+        <MudLink Href="@Repo.Url" Target="_blank" Class="mt-3 d-block">@Repo.FullName on GitHub</MudLink>
+    </MudPaper>
+}
+
+@code {
+    [Parameter] public RepoInfo? Repo { get; set; }
+    [Parameter] public int WindowDays { get; set; } = 30;
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    /// <summary>"today", "3 days ago", "Mar 11, 2026" past a month.</summary>
+    private static string Ago(DateTimeOffset? at)
+    {
+        if (at is not { } t) return "unknown";
+        var days = (int)(DateTimeOffset.UtcNow - t).TotalDays;
+        return days switch
+        {
+            < 1 => "today",
+            1 => "yesterday",
+            < 31 => $"{days} days ago",
+            _ => t.ToString("MMM d, yyyy", CultureInfo.InvariantCulture),
+        };
+    }
+}

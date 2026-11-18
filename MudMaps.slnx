@@ -1,0 +1,13 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/MudMaps.City/MudMaps.City.csproj" />
+    <Project Path="src/MudMaps.Colony/MudMaps.Colony.csproj" />
+    <Project Path="src/MudMaps.Islands/MudMaps.Islands.csproj" />
+    <Project Path="src/MudMaps.Server/MudMaps.Server.csproj" />
+    <Project Path="src/MudMaps.Shared/MudMaps.Shared.csproj" />
+    <Project Path="src/MudMaps.Stars/MudMaps.Stars.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/MudMaps.Server.Tests/MudMaps.Server.Tests.csproj" />
+  </Folder>
+</Solution>

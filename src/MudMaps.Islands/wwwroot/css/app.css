@@ -1,0 +1,14 @@
+/* Retro print: two inks on warm stock, no gradients, no blurred shadows. */
+:root { --paper: #F4EDDE; --paper-2: #EBE2CF; --ink: #21201C; --red: #E4572E; --blue: #355E8C; }
+html { scrollbar-color: var(--ink) var(--paper); }
+.mm-loading { color: var(--ink); padding: 48px; font-family: "IBM Plex Mono", monospace; text-transform: uppercase; letter-spacing: .1em; font-size: 12px; }
+.mm-title { text-shadow: 3px 3px 0 var(--blue); }
+.mm-fig-value { color: var(--red); text-shadow: 2px 2px 0 var(--blue); }
+.mm-stage { border: 2px solid var(--ink); border-radius: 0; background: var(--paper); }
+.mm-panel { border: 2px solid var(--ink) !important; box-shadow: 5px 5px 0 var(--ink) !important; border-radius: 0 !important; }
+.mm-trail .mud-button-root { border-radius: 0 !important; }
+.mm-stamp { display: inline-block; font: 500 11px "IBM Plex Mono", monospace; letter-spacing: .1em; text-transform: uppercase; color: var(--red);
+  border: 1.5px dashed var(--ink); border-radius: 999px; padding: 4px 12px; rotate: -2deg; margin-top: 24px; }
+.mm-colophon { display: flex; justify-content: space-between; font: 500 11px "IBM Plex Mono", monospace; letter-spacing: .1em; text-transform: uppercase; padding-top: 12px; }
+svg .lab, svg .area { transition: opacity 300ms ease-out; }
+@media (prefers-reduced-motion: reduce) { svg .lab, svg .area { transition: none; } }

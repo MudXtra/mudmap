@@ -1,0 +1,14 @@
+:root { --bg: #020617; --card: #0E1223; --border: #334155; --fg: #F8FAFC; --muted: #94A3B8; --gold: #FACC15; --silver: #CBD5E1; --purple: #A78BFA; --cold: #475569; }
+html { scrollbar-color: var(--border) var(--bg); }
+.mm-loading { color: var(--muted); padding: 48px; font-family: "Fira Sans", sans-serif; }
+.mm-title b { color: var(--gold); font-weight: 600; }
+.mm-fig { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 12px 16px; min-width: 120px; }
+.mm-figs { gap: 12px; }
+.mm-stage { background: var(--card); border: 1px solid var(--border); }
+svg text { font-family: "Fira Sans", ui-sans-serif, sans-serif; }
+svg .lab, svg .area { transition: opacity 300ms ease-out; }
+.moons { animation: spin 14s linear infinite; }
+.twinkle { animation: twinkle 4s ease-in-out infinite alternate; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes twinkle { from { opacity: .25; } to { opacity: .85; } }
+@media (prefers-reduced-motion: reduce) { .moons, .twinkle { animation: none; } svg .lab, svg .area { transition: none; } }

@@ -1,0 +1,22 @@
+@* Breadcrumb for the zoom levels: Whole map › Area › Room. *@
+<MudStack Row AlignItems="AlignItems.Center" Spacing="1" Class="mm-trail" role="navigation" aria-label="Zoom level">
+    @for (var i = 0; i < Steps.Count; i++)
+    {
+        var step = Steps[i];
+        if (i > 0)
+        {
+            <MudIcon Icon="@Icons.Material.Filled.ChevronRight" Size="Size.Small" aria-hidden="true" />
+        }
+        <MudButton Variant="@(i == Steps.Count - 1 ? Variant.Filled : Variant.Outlined)"
+                   Color="Color.Primary" Size="Size.Small" Class="rounded-pill"
+                   OnClick="step.OnClick" aria-current="@(i == Steps.Count - 1 ? "page" : null)">
+            @step.Label
+        </MudButton>
+    }
+</MudStack>
+
+@code {
+    public sealed record Step(string Label, EventCallback OnClick);
+
+    [Parameter, EditorRequired] public IReadOnlyList<Step> Steps { get; set; } = [];
+}

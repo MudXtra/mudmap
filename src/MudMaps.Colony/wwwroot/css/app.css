@@ -1,0 +1,17 @@
+/* Colony colours that MudBlazor's palette does not carry. */
+:root {
+  --soil: #342215; --soil-2: #422e1e; --tunnel: #150e09; --grass: #445e36; --sky: #111921; --ant: #e2d6c2;
+  --ink: #efe7d8; --ink-2: #d3c9bb; --muted: #9d9388; --accent: #e89f92; --paper-3: #271d17; --room-hot: #4a2a24;
+}
+html { scrollbar-color: var(--paper-3) #0f0a06; }
+.mm-loading { color: var(--muted); padding: 48px; font-family: "Instrument Sans", sans-serif; }
+.mm-stage { background: var(--soil); }
+.mm-fig-value { color: var(--accent); }
+svg text { font-family: "Instrument Sans", ui-sans-serif, sans-serif; }
+svg .lab { transition: opacity 300ms ease-out; }
+svg.zoomed .lab { opacity: 0; }
+svg .chamber { transition: opacity 400ms ease-out; }
+svg.zoomed .chamber:not(.current) { opacity: .35; }
+@media (prefers-reduced-motion: reduce) { svg .lab, svg .chamber { transition: none; } }
+
+.mm-figs { gap: 32px; }

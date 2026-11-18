@@ -1,0 +1,97 @@
+@page "/"
+@inherits MapPageBase
+
+<PageTitle>Where Mud runs hot</PageTitle>
+
+<div class="mm-wrap">
+    @if (Data is null)
+    {
+        <MudProgressLinear Color="Color.Primary" Indeterminate Class="mt-8" />
+    }
+    else
+    {
+        <MapHero Title="Where Mud runs hot."
+                 Lede="Nine repos as one city, lit by this month’s pull requests."
+                 Figures="Figures" />
+
+        <MudStack Row Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Wrap="Wrap.Wrap">
+            <ZoomTrail Steps="Trail" />
+            <div class="mm-ramp" aria-label="Heat scale">
+                cold
+                @for (var i = 1; i <= 6; i++)
+                {
+                    <i style="@($"background:var(--heat-{i})")"></i>
+                }
+                30+ pull requests
+            </div>
+        </MudStack>
+
+        <div class="mm-stage mt-2">
+            <svg @ref="Svg" viewBox="@($"0 0 {F(ViewWidth)} {F(ViewHeight)}")" role="img" aria-label="Isometric city of the Mud repositories">
+                @foreach (var p in _plates)
+                {
+                    <g class="mm-hot" tabindex="0" role="button" aria-label="@($"{p.Repo}: {p.Prs} pull requests. Details.")"
+                       @onclick="() => OpenRepo(p.Repo)" @onkeydown="e => KeyAsync(e, () => { OpenRepo(p.Repo); return Task.CompletedTask; })">
+                        <polygon points="@p.Points" fill="var(--paper-3)" />
+                        <text class="lab" style="@LabelStyle" x="@F(p.LabelX)" y="@F(p.LabelY)" text-anchor="middle"
+                              font-family="Boska, Georgia, serif" font-weight="500" font-size="@(p.Big ? "24" : "17")" fill="var(--ink)">@p.Repo</text>
+                        <text class="lab" style="@LabelStyle" x="@F(p.LabelX)" y="@F(p.LabelY + 18)" text-anchor="middle" font-size="12"
+                              fill="@(p.Prs > 0 ? "var(--heat-4)" : "var(--muted)")">@(p.Prs > 0 ? $"{p.Prs} pull requests" : "quiet this month")</text>
+                    </g>
+                }
+
+                @foreach (var b in _buildings)
+                {
+                    <g class="area mm-hot" style="@AreaStyle(b.Hood)" tabindex="0" role="button"
+                       aria-label="@($"{b.Hood.Label} in {b.Hood.Repo}, {b.Hood.Prs} pull requests. Go inside.")"
+                       @onclick="() => OpenHoodAsync(b.Hood)" @onkeydown="e => KeyAsync(e, () => OpenHoodAsync(b.Hood))">
+                        <polygon points="@b.Front" fill="@(b.Cool ? "var(--stone-x1)" : "var(--stone-1)")" />
+                        <polygon points="@b.Side" fill="@(b.Cool ? "var(--stone-x2)" : "var(--stone-2)")" />
+                        <polygon points="@b.Top" fill="@b.RoofFill" />
+                        @foreach (var w in b.Windows)
+                        {
+                            <polygon points="@w.Points" fill="@w.Fill" />
+                        }
+                        <title>@($"{b.Hood.Label}: {b.Hood.Prs} pull requests")</title>
+                    </g>
+                }
+
+                @foreach (var b in _buildings)
+                {
+                    <g pointer-events="none">
+                    <text class="lab" style="@LabelStyle" x="@F(b.LabelX)" y="@F(b.LabelY)" text-anchor="middle" font-size="11" font-weight="500"
+                          fill="@(b.Hood.Prs > 0 ? "var(--ink)" : "var(--muted)")" paint-order="stroke" stroke="var(--paper-2)" stroke-width="3"
+                          >@b.Hood.Label</text>
+                    </g>
+                }
+
+                @if (CurrentHood is not null && Rooms.Count > 0)
+                {
+                    var f = Focus(CurrentHood);
+                    <rect x="@F(f.X - f.Rx * .85)" y="@F(f.Y - f.Ry * .78)" width="@F(f.Rx * 1.7)" height="@F(f.Ry * 1.5)"
+                          rx="@F(f.Rx * .06)" fill="var(--paper-2)" opacity=".94" stroke="var(--stone-3)" stroke-width="@F(f.Rx * .008)" />
+                    @foreach (var room in Rooms)
+                    {
+                        var level = MapData.Heat(room.Cluster.Prs);
+                        <g class="mm-hot" tabindex="0" role="button" aria-label="@($"{room.FullName}, {room.Cluster.N} code items, {room.Cluster.Prs} pull requests")"
+                           @onclick="() => OpenRoom(room)" @onkeydown="e => KeyAsync(e, () => { OpenRoom(room); return Task.CompletedTask; })">
+                            <rect x="@F(room.X - room.R * 1.2)" y="@F(room.Y - room.R * .7)" width="@F(room.R * 2.4)" height="@F(room.R * 1.4)" rx="@F(room.R * .15)"
+                                  fill="@(level > 0 ? $"var(--heat-{level})" : "var(--stone-2)")"
+                                  stroke="@(CurrentRoom == room.Cluster ? "var(--ink)" : "none")" stroke-width="@F(room.R * .06)" />
+                            <text x="@F(room.X)" y="@F(room.Y + room.FontSize * .35)" text-anchor="middle" font-size="@F(room.FontSize)" font-weight="600"
+                                  fill="@(level >= 4 ? "var(--paper)" : "var(--ink)")">@room.Name</text>
+                            <title>@room.FullName</title>
+                        </g>
+                    }
+                }
+            </svg>
+            <RoomPanel Cluster="CurrentRoom" OnClose="CloseRoom" />
+            <RepoPanel Repo="CurrentRepo" WindowDays="Data.WindowDays" OnClose="CloseRepo" />
+        </div>
+
+        <MudText Typo="Typo.body2" Class="mm-note mud-text-secondary">
+            Each district is a repo and each building one part of its code; taller holds more. Windows burn with the pull requests that touched it
+            in the last @Data.WindowDays days. Click a building to go inside and see its rooms, a room for its code, a district name for the repo.
+        </MudText>
+    }
+</div>

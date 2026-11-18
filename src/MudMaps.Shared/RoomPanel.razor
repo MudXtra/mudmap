@@ -1,0 +1,29 @@
+@* Detail card for one cluster, shown over the map at the deepest zoom. *@
+@if (Cluster is not null)
+{
+    <MudPaper Elevation="8" Class="mm-panel pa-4" role="dialog" aria-label="@MapData.RoomName(Cluster)">
+        <MudStack Row Justify="Justify.SpaceBetween" AlignItems="AlignItems.Start">
+            <div>
+                <MudText Typo="Typo.h5">@MapData.RoomName(Cluster)</MudText>
+                <MudText Typo="Typo.body2" Class="mud-text-secondary">@Cluster.N code items in @Cluster.Dir</MudText>
+                @if (Cluster.Prs > 0)
+                {
+                    <MudChip T="string" Size="Size.Small" Color="Color.Primary" Class="ml-0 mt-2">@Cluster.Prs pull request@(Cluster.Prs == 1 ? "" : "s") this month</MudChip>
+                }
+            </div>
+            <MudIconButton Icon="@Icons.Material.Filled.Close" Size="Size.Small" aria-label="Close" OnClick="OnClose" />
+        </MudStack>
+        <MudList T="string" Dense ReadOnly Class="mt-2">
+            @foreach (var item in Cluster.Top)
+            {
+                <MudListItem T="string" Text="@item" />
+                <MudDivider />
+            }
+        </MudList>
+    </MudPaper>
+}
+
+@code {
+    [Parameter] public Cluster? Cluster { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+}
