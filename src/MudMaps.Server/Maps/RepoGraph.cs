@@ -14,7 +14,7 @@ public sealed partial class RepoGraph
     public required string Slug { get; init; }
     public required string? BuiltAtCommit { get; init; }
     public required int Nodes { get; init; }
-    public required IReadOnlyList<(string Key, string Area, int Size)> Areas { get; init; }
+    public required IReadOnlyList<(string Key, string Area, int Size, int TestSize)> Areas { get; init; }
     public required IReadOnlyList<RoomInfo> Rooms { get; init; }
     public required IReadOnlyDictionary<(string, string), int> Roads { get; init; }
     public required IReadOnlyDictionary<string, string> TypeIndex { get; init; }
@@ -24,7 +24,9 @@ public sealed partial class RepoGraph
     public required IReadOnlySet<string> KeptAreas { get; init; }
     public required bool HasOther { get; init; }
 
-    public sealed record RoomInfo(string Id, string Hood, int N, string Dir, IReadOnlyList<string> Top, string Name);
+    /// <param name="TestN">How many of the room's items are test code.</param>
+    /// <param name="Path">The room's most common folder, repository-relative, for linking to GitHub.</param>
+    public sealed record RoomInfo(string Id, string Hood, int N, string Dir, IReadOnlyList<string> Top, string Name, int TestN = 0, string Path = "");
 
     public string OtherKey => $"{Slug}/other";
 
@@ -45,7 +47,7 @@ public sealed partial class RepoGraph
     private sealed record Node(string Id, string Label, string? File, int? Community);
 
     /// <summary>Read a graph.json and derive the map structure for one repository.</summary>
-    public static RepoGraph Load(string fullName, string name, int budget, Stream graphJson, bool indexMudTypes)
+    public static RepoGraph Load(string fullName, string name, int budget, Stream graphJson, bool indexMudTypes, string? licenseFile = null)
     {
         using var doc = JsonDocument.Parse(graphJson, new JsonDocumentOptions { MaxDepth = 64 });
         var root = doc.RootElement;
@@ -63,6 +65,8 @@ public sealed partial class RepoGraph
         var canon = new Dictionary<string, string>();
         var nodeArea = new Dictionary<string, string>();
         var size = new Dictionary<string, int>();
+        var testSize = new Dictionary<string, int>();
+        var isTest = new HashSet<string>();
         foreach (var n in nodes.Values)
         {
             var a = AreaRules.AreaOf(n.File);
@@ -70,6 +74,11 @@ public sealed partial class RepoGraph
             if (!canon.TryGetValue(a.ToLowerInvariant(), out var c)) canon[a.ToLowerInvariant()] = c = a;
             nodeArea[n.Id] = c;
             size[c] = size.GetValueOrDefault(c) + 1;
+            if (AreaRules.IsTest(n.File))
+            {
+                isTest.Add(n.Id);
+                testSize[c] = testSize.GetValueOrDefault(c) + 1;
+            }
         }
 
         var keep = size.OrderByDescending(kv => kv.Value).Take(budget).Select(kv => kv.Key).ToList();
@@ -125,7 +134,8 @@ public sealed partial class RepoGraph
             var stem = Mode(members.Select(m => nodes[m].File!.Split('/')[^1].Split('.')[0]));
             var typed = labels.FirstOrDefault(l => TypeName().IsMatch(l) && !AreaRules.Generic.Contains(l));
             var roomName = TypeName().IsMatch(stem) ? stem : typed ?? (stem.Length > 0 ? stem : $"Cluster {cid}");
-            var room = new RoomInfo($"{slug}:{cid}", hk, members.Count, dir, labels, roomName);
+            var path = Mode(members.Select(m => nodes[m].File!.Contains('/') ? nodes[m].File![..nodes[m].File!.LastIndexOf('/')] : ""));
+            var room = new RoomInfo($"{slug}:{cid}", hk, members.Count, dir, labels, roomName, members.Count(isTest.Contains), path);
             if (!roomsByHood.TryGetValue(hk, out var rs)) roomsByHood[hk] = rs = [];
             rs.Add(room);
             memberFiles[room.Id] = members.Select(m => nodes[m].File!).Distinct().ToList();
@@ -178,7 +188,7 @@ public sealed partial class RepoGraph
             Slug = slug,
             BuiltAtCommit = built,
             Nodes = size.Values.Sum(),
-            Areas = keep.Select(a => ($"{slug}/{a.ToLowerInvariant()}", a, size[a])).ToList(),
+            Areas = keep.Select(a => ($"{slug}/{a.ToLowerInvariant()}", a, size[a], testSize.GetValueOrDefault(a))).ToList(),
             Rooms = rooms,
             Roads = roads,
             TypeIndex = typeIndex,
@@ -188,10 +198,18 @@ public sealed partial class RepoGraph
             KeptAreas = keepSet,
             HasOther = hasOther,
             OtherSize = hasOther ? size.Where(kv => !keepSet.Contains(kv.Key)).Sum(kv => kv.Value) : 0,
+            OtherTestSize = hasOther ? testSize.Where(kv => !keepSet.Contains(kv.Key)).Sum(kv => kv.Value) : 0,
+            TestNodes = isTest.Count,
+            LicenseFile = licenseFile,
         };
     }
 
     public required int OtherSize { get; init; }
+    public required int OtherTestSize { get; init; }
+    public required int TestNodes { get; init; }
+
+    /// <summary>The license file's name at the repository root ("LICENSE", "LICENSE.txt"), if there is one.</summary>
+    public string? LicenseFile { get; init; }
 
     /// <summary>The last two folders of a path ("Components/Chart"), or fewer for shallow paths.</summary>
     private static string DirOf(string file)

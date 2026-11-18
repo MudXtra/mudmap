@@ -103,9 +103,9 @@
                     }
                 }
             </svg>
-            <RoomPanel Cluster="CurrentRoom" OnClose="CloseRoom" />
-            <RepoPanel Repo="CurrentRepo" WindowDays="Data.WindowDays" OnClose="CloseRepo" />
         </div>
+        <MapControls IncludeTests="IncludeTests" IncludeTestsChanged="SetIncludeTestsAsync" Available="TestsKnown" TestItems="TestItems" />
+        <MapSheet Room="CurrentRoom" Repo="CurrentRepo" RoomRepo="RepoOf(CurrentRoom)" WindowDays="Data.WindowDays" OnClose="CloseDetails" />
 
         <MudText Typo="Typo.body2" Class="mm-note mud-text-secondary">
             Each star is a repo and each planet a part of its code, sized by how much lives there. Gold planets had pull requests in the last

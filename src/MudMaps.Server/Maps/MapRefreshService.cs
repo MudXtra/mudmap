@@ -64,7 +64,7 @@ public sealed class MapRefreshService(
             var stamp = File.GetLastWriteTimeUtc(path);
             if (_graphs.TryGetValue(repo.FullName, out var cached) && cached.Stamp == stamp) continue;
             using var stream = File.OpenRead(path);
-            var graph = RepoGraph.Load(repo.FullName, repo.Name, repo.AreaBudget, stream, repo.Name == MapComposer.MudBlazor);
+            var graph = RepoGraph.Load(repo.FullName, repo.Name, repo.AreaBudget, stream, repo.Name == MapComposer.MudBlazor, LicenseFile(opts, repo.FullName));
             _graphs[repo.FullName] = (stamp, graph);
             log.LogInformation("Loaded graph for {Repo}: {Nodes} items, {Rooms} rooms", repo.FullName, graph.Nodes, graph.Rooms.Count);
             changed = true;
@@ -115,6 +115,18 @@ public sealed class MapRefreshService(
         if (snapshot.Version == previous) return;
         log.LogInformation("Published map {Version}: {Areas} areas, {Rooms} rooms", snapshot.Version, snapshot.Areas, snapshot.Rooms);
         await hub.Clients.All.SendAsync("mapUpdated", snapshot.Version, ct);
+    }
+
+    /// <summary>The root license file of a clone ("LICENSE", "LICENSE.txt", "LICENSE.md"), or null.</summary>
+    internal static string? LicenseFile(MapsOptions opts, string fullName)
+    {
+        var dir = Path.Combine(opts.ReposRoot, fullName);
+        if (!Directory.Exists(dir)) return null;
+        return Directory.EnumerateFiles(dir, "LICEN?E*", new EnumerationOptions { MatchCasing = MatchCasing.CaseInsensitive, RecurseSubdirectories = false })
+            .Select(Path.GetFileName)
+            .Where(n => n is not null && System.Text.RegularExpressions.Regex.IsMatch(n, @"^LICEN[CS]E(\.(txt|md))?$", System.Text.RegularExpressions.RegexOptions.IgnoreCase))
+            .OrderBy(n => n!.Length)
+            .FirstOrDefault();
     }
 
     private static bool SameActivity(RepoActivity a, RepoActivity b) =>

@@ -1,88 +1,105 @@
 @using System.Globalization
-@* The repo highlight card: what it is, where it stands, who is driving it. *@
+@* The repo highlight card: what it is, where it stands, who is driving it. Every fact links to its page on GitHub. *@
 @if (Repo is not null)
 {
     var h = Repo.Highlights;
-    <MudPaper Elevation="8" Class="mm-panel pa-4" role="dialog" aria-label="@Repo.Name">
-        <MudStack Row Justify="Justify.SpaceBetween" AlignItems="AlignItems.Start">
-            <div>
-                <MudText Typo="Typo.h5">@Repo.Name</MudText>
-                @if (!string.IsNullOrWhiteSpace(h?.Description))
-                {
-                    <MudText Typo="Typo.body2" Class="mud-text-secondary mt-1">@h.Description</MudText>
-                }
-            </div>
-            <MudIconButton Icon="@Icons.Material.Filled.Close" Size="Size.Small" aria-label="Close" OnClick="OnClose" />
-        </MudStack>
+    var gh = Repo.Url.TrimEnd('/');
+    var docs = DocsCatalog.For(Repo.FullName);
+    <MudStack Row Justify="Justify.SpaceBetween" AlignItems="AlignItems.Start" Wrap="Wrap.NoWrap">
+        <div class="mm-min0">
+            <MudText Typo="Typo.h5"><MudLink Href="@gh" Target="_blank" rel="noopener" Color="Color.Inherit"><Fit Text="@Repo.Name" Max="26" /></MudLink></MudText>
+            @if (!string.IsNullOrWhiteSpace(h?.Description))
+            {
+                <MudText Typo="Typo.body2" Class="mud-text-secondary mt-1">@h.Description</MudText>
+            }
+        </div>
+        <MudIconButton Icon="@Icons.Material.Filled.Close" Size="Size.Small" aria-label="Close" OnClick="OnClose" />
+    </MudStack>
 
+    <MudStack Row Spacing="1" Class="mt-3" Wrap="Wrap.Wrap">
         @if (h?.Version is not null)
         {
-            <MudStack Row Spacing="1" Class="mt-3" Wrap="Wrap.Wrap">
-                <MudChip T="string" Size="Size.Small" Color="Color.Primary" Class="ml-0">@h.Version</MudChip>
-                @if (h.License is not null)
-                {
-                    <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">@h.License</MudChip>
-                }
-            </MudStack>
+            <MudChip T="string" Size="Size.Small" Color="Color.Primary" Class="ml-0" Href="@($"{gh}/releases")" Target="_blank">@h.Version</MudChip>
         }
+        @if (h?.License is not null)
+        {
+            <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Href="@(Repo.LicenseUrl ?? $"{gh}#license")" Target="_blank"
+                     Icon="@Icons.Material.Outlined.Gavel">@h.License</MudChip>
+        }
+        @if (docs is not null)
+        {
+            <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Href="@docs.Docs" Target="_blank" Icon="@Icons.Material.Outlined.MenuBook">Docs</MudChip>
+            @if (docs.ApiIndex is not null)
+            {
+                <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Href="@docs.ApiIndex" Target="_blank" Icon="@Icons.Material.Outlined.DataObject">API</MudChip>
+            }
+        }
+    </MudStack>
 
-        <MudSimpleTable Dense Class="mt-2" Style="background:transparent">
-            <tbody>
-                @if (h is not null)
-                {
-                    <tr>
-                        <td>Last release</td>
-                        <td>
-                            @if (h.LatestRelease is null)
-                            {
-                                <span>none published</span>
-                            }
-                            else if (h.LatestReleaseUrl is not null)
-                            {
-                                <MudLink Href="@h.LatestReleaseUrl" Target="_blank">@h.LatestRelease</MudLink><span>, @Ago(h.LatestReleaseAt)</span>
-                            }
-                            else
-                            {
-                                <span>@h.LatestRelease, @Ago(h.LatestReleaseAt)</span>
-                            }
-                        </td>
-                    </tr>
-                    <tr><td>Last pull request</td><td>@Ago(h.LastPrAt)</td></tr>
-                    <tr>
-                        <td>Most pull requests</td>
-                        <td>
-                            @if (h.TopAuthor is null)
-                            {
-                                <span>none this month</span>
-                            }
-                            else
-                            {
-                                <MudLink Href="@($"https://github.com/{h.TopAuthor}")" Target="_blank">@h.TopAuthor</MudLink>
-                                <span>, @h.TopAuthorPrs (@h.TopAuthorMerged merged)</span>
-                            }
-                        </td>
-                    </tr>
-                }
-                <tr><td>Pull requests, last @WindowDays days</td><td>@Repo.Prs (@Repo.Merged merged)</td></tr>
-                @if (h is not null)
-                {
-                    <tr><td>Contributors, last @WindowDays days</td><td>@h.Contributors</td></tr>
-                    <tr><td>Open pull requests</td><td>@h.OpenPrs</td></tr>
-                    <tr><td>Open issues</td><td>@h.OpenIssues.ToString("N0", CultureInfo.InvariantCulture)</td></tr>
-                    <tr><td>Last commit</td><td>@Ago(h.LastCommitAt)</td></tr>
-                }
-                <tr><td>Stars@(h is null ? "" : " / forks")</td><td>@Repo.Stars.ToString("N0", CultureInfo.InvariantCulture)@(h is null ? "" : $" / {h.Forks.ToString("N0", CultureInfo.InvariantCulture)}")</td></tr>
-                <tr><td>Mapped code items</td><td>@Repo.Nodes.ToString("N0", CultureInfo.InvariantCulture)</td></tr>
-            </tbody>
-        </MudSimpleTable>
-        <MudLink Href="@Repo.Url" Target="_blank" Class="mt-3 d-block">@Repo.FullName on GitHub</MudLink>
-    </MudPaper>
+    <MudSimpleTable Dense Class="mt-2 mm-facts" Style="background:transparent">
+        <tbody>
+            @if (h is not null)
+            {
+                <tr>
+                    <td>Last release</td>
+                    <td>
+                        @if (h.LatestRelease is null)
+                        {
+                            <span>none published</span>
+                        }
+                        else
+                        {
+                            <MudLink Href="@(h.LatestReleaseUrl ?? $"{gh}/releases")" Target="_blank"><Fit Text="@h.LatestRelease" Max="18" /></MudLink><span>, @Ago(h.LatestReleaseAt)</span>
+                        }
+                    </td>
+                </tr>
+                <tr><td>Last pull request</td><td><MudLink Href="@($"{gh}/pulls?q=is%3Apr+sort%3Acreated-desc")" Target="_blank">@Ago(h.LastPrAt)</MudLink></td></tr>
+                <tr>
+                    <td>Most pull requests</td>
+                    <td>
+                        @if (h.TopAuthor is null)
+                        {
+                            <span>none this month</span>
+                        }
+                        else
+                        {
+                            <MudLink Href="@($"https://github.com/{h.TopAuthor}")" Target="_blank"><Fit Text="@h.TopAuthor" Max="18" /></MudLink>
+                            <span>, </span><MudLink Href="@($"{gh}/pulls?q=is%3Apr+author%3A{Uri.EscapeDataString(h.TopAuthor)}")" Target="_blank">@h.TopAuthorPrs (@h.TopAuthorMerged merged)</MudLink>
+                        }
+                    </td>
+                </tr>
+            }
+            <tr><td>Pull requests, last @WindowDays days</td><td><MudLink Href="@($"{gh}/pulls?q=is%3Apr+created%3A%3E%3D{Since}")" Target="_blank">@Repo.Prs (@Repo.Merged merged)</MudLink></td></tr>
+            @if (h is not null)
+            {
+                <tr><td>Contributors, last @WindowDays days</td><td><MudLink Href="@($"{gh}/graphs/contributors")" Target="_blank">@h.Contributors</MudLink></td></tr>
+                <tr><td>Open pull requests</td><td><MudLink Href="@($"{gh}/pulls")" Target="_blank">@h.OpenPrs</MudLink></td></tr>
+                <tr><td>Open issues</td><td><MudLink Href="@($"{gh}/issues")" Target="_blank">@h.OpenIssues.ToString("N0", CultureInfo.InvariantCulture)</MudLink></td></tr>
+                <tr><td>Last commit</td><td><MudLink Href="@($"{gh}/commits")" Target="_blank">@Ago(h.LastCommitAt)</MudLink></td></tr>
+            }
+            <tr>
+                <td>Stars@(h is null ? "" : " / forks")</td>
+                <td>
+                    <MudLink Href="@($"{gh}/stargazers")" Target="_blank">@Repo.Stars.ToString("N0", CultureInfo.InvariantCulture)</MudLink>
+                    @if (h is not null)
+                    {
+                        <span> / </span><MudLink Href="@($"{gh}/forks")" Target="_blank">@h.Forks.ToString("N0", CultureInfo.InvariantCulture)</MudLink>
+                    }
+                </td>
+            </tr>
+            <tr><td>Mapped code items</td><td>@Repo.Nodes.ToString("N0", CultureInfo.InvariantCulture)</td></tr>
+        </tbody>
+    </MudSimpleTable>
+    <MudButton Href="@gh" Target="_blank" Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small" Class="mt-3"
+               StartIcon="@Icons.Custom.Brands.GitHub">@Repo.FullName</MudButton>
 }
 
 @code {
     [Parameter] public RepoInfo? Repo { get; set; }
     [Parameter] public int WindowDays { get; set; } = 30;
     [Parameter] public EventCallback OnClose { get; set; }
+
+    private string Since => DateTimeOffset.UtcNow.AddDays(-WindowDays).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
 
     /// <summary>"today", "3 days ago", "Mar 11, 2026" past a month.</summary>
     private static string Ago(DateTimeOffset? at)

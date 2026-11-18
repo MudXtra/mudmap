@@ -1,29 +1,87 @@
-@* Detail card for one cluster, shown over the map at the deepest zoom. *@
+@* Detail for one cluster: its code items, with API pages for the library's own types and the folder on GitHub. *@
 @if (Cluster is not null)
 {
-    <MudPaper Elevation="8" Class="mm-panel pa-4" role="dialog" aria-label="@MapData.RoomName(Cluster)">
-        <MudStack Row Justify="Justify.SpaceBetween" AlignItems="AlignItems.Start">
-            <div>
-                <MudText Typo="Typo.h5">@MapData.RoomName(Cluster)</MudText>
-                <MudText Typo="Typo.body2" Class="mud-text-secondary">@Cluster.N code items in @Cluster.Dir</MudText>
+    var name = MapData.RoomName(Cluster);
+    var gh = Repo?.Url.TrimEnd('/');
+    <MudStack Row Justify="Justify.SpaceBetween" AlignItems="AlignItems.Start" Wrap="Wrap.NoWrap">
+        <div class="mm-min0">
+            <MudText Typo="Typo.h5"><Fit Text="@name" Max="26" /></MudText>
+            <MudText Typo="Typo.body2" Class="mud-text-secondary">
+                @Cluster.N code items in
+                @if (gh is not null && !string.IsNullOrEmpty(Cluster.Path))
+                {
+                    <MudLink Href="@($"{gh}/tree/HEAD/{Cluster.Path}")" Target="_blank"><Fit Text="@Cluster.Dir" Max="30" /></MudLink>
+                }
+                else
+                {
+                    <Fit Text="@Cluster.Dir" Max="30" />
+                }
+            </MudText>
+            <MudStack Row Spacing="1" Class="mt-2" Wrap="Wrap.Wrap">
                 @if (Cluster.Prs > 0)
                 {
-                    <MudChip T="string" Size="Size.Small" Color="Color.Primary" Class="ml-0 mt-2">@Cluster.Prs pull request@(Cluster.Prs == 1 ? "" : "s") this month</MudChip>
+                    <MudChip T="string" Size="Size.Small" Color="Color.Primary" Class="ml-0">@Cluster.Prs pull request@(Cluster.Prs == 1 ? "" : "s") this month</MudChip>
                 }
-            </div>
-            <MudIconButton Icon="@Icons.Material.Filled.Close" Size="Size.Small" aria-label="Close" OnClick="OnClose" />
-        </MudStack>
-        <MudList T="string" Dense ReadOnly Class="mt-2">
-            @foreach (var item in Cluster.Top)
+                @if (Cluster.TestN > 0)
+                {
+                    <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Class="ml-0">@Cluster.TestN test@(Cluster.TestN == 1 ? "" : "s")</MudChip>
+                }
+            </MudStack>
+        </div>
+        <MudIconButton Icon="@Icons.Material.Filled.Close" Size="Size.Small" aria-label="Close" OnClick="OnClose" />
+    </MudStack>
+    @if (gh is not null && Cluster.PrNumbers is { Count: > 0 } numbers)
+    {
+        <MudText Typo="Typo.overline" Class="d-block mt-3">Pull requests here</MudText>
+        <MudStack Row Spacing="1" Wrap="Wrap.Wrap">
+            @foreach (var n in numbers)
             {
-                <MudListItem T="string" Text="@item" />
-                <MudDivider />
+                <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Class="ml-0" Href="@($"{gh}/pull/{n}")" Target="_blank">#@n</MudChip>
             }
-        </MudList>
-    </MudPaper>
+        </MudStack>
+    }
+    <MudText Typo="Typo.overline" Class="d-block mt-3">Most connected code</MudText>
+    <MudList T="string" Dense ReadOnly>
+        @foreach (var item in Cluster.Top)
+        {
+            var api = Repo is null ? null : DocsCatalog.ApiFor(Repo.FullName, item);
+            <MudListItem T="string">
+                <MudStack Row AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Wrap="Wrap.NoWrap">
+                    <Fit Text="@item" Max="30" Class="mm-code" />
+                    <MudStack Row Spacing="0">
+                        @if (api is not null)
+                        {
+                            <MudTooltip Text="@($"API for {item}")" Placement="Placement.Left">
+                                <MudIconButton Icon="@Icons.Material.Outlined.DataObject" Size="Size.Small" Href="@api" Target="_blank" aria-label="@($"API for {item}")" />
+                            </MudTooltip>
+                        }
+                        @if (gh is not null)
+                        {
+                            <MudTooltip Text="Find in the repo" Placement="Placement.Left">
+                                <MudIconButton Icon="@Icons.Material.Outlined.Search" Size="Size.Small" Target="_blank"
+                                               Href="@($"https://github.com/search?type=code&q=repo%3A{Uri.EscapeDataString(Repo!.FullName)}+{Uri.EscapeDataString(Symbol(item))}")"
+                                               aria-label="@($"Find {item} on GitHub")" />
+                            </MudTooltip>
+                        }
+                    </MudStack>
+                </MudStack>
+            </MudListItem>
+            <MudDivider />
+        }
+    </MudList>
+    @if (Repo is not null && DocsCatalog.For(Repo.FullName) is { } docs)
+    {
+        <MudButton Href="@(docs.ApiIndex ?? docs.Docs)" Target="_blank" Variant="Variant.Text" Size="Size.Small" Class="mt-2"
+                   StartIcon="@Icons.Material.Outlined.MenuBook">@Repo.Name docs</MudButton>
+    }
 }
 
 @code {
     [Parameter] public Cluster? Cluster { get; set; }
+    /// <summary>The repository the cluster belongs to, for links.</summary>
+    [Parameter] public RepoInfo? Repo { get; set; }
     [Parameter] public EventCallback OnClose { get; set; }
+
+    /// <summary>"MudButton.OnClick()" searches for "OnClick".</summary>
+    private static string Symbol(string item) => item.TrimEnd('(', ')').Split('.')[^1];
 }

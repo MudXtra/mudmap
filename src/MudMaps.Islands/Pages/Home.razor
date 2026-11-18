@@ -112,9 +112,9 @@
                     }
                 }
             </svg>
-            <RoomPanel Cluster="CurrentRoom" OnClose="CloseRoom" />
-            <RepoPanel Repo="CurrentRepo" WindowDays="Data.WindowDays" OnClose="CloseRepo" />
         </div>
+        <MapControls IncludeTests="IncludeTests" IncludeTestsChanged="SetIncludeTestsAsync" Available="TestsKnown" TestItems="TestItems" />
+        <MapSheet Room="CurrentRoom" Repo="CurrentRepo" RoomRepo="RepoOf(CurrentRoom)" WindowDays="Data.WindowDays" OnClose="CloseDetails" />
 
         <div class="mm-colophon"><span>Surveyed from the Graphify maps and GitHub, last @Data.WindowDays days</span><span>Printed in two inks</span></div>
         <MudText Typo="Typo.body2" Class="mm-note">

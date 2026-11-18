@@ -36,4 +36,15 @@ public class AreaRulesTests
     [InlineData("Unit", "Unit tests")]
     [InlineData("SelectExtended", "Select Extended")]
     public void Label_is_readable(string key, string expected) => Assert.Equal(expected, AreaRules.Label(key));
+
+    [Theory]
+    [InlineData("src/MudBlazor.UnitTests/Components/ButtonTests.cs", true)]
+    [InlineData("tests/Foo/Bar.cs", true)]
+    [InlineData("src/Heron.MudCalendar.Tests/CalendarTest.cs", true)]
+    [InlineData("src/MudX/Components/Sheet/MudXSheetTests.razor", true)]
+    [InlineData("src/app/foo.spec.ts", true)]
+    [InlineData("src/MudBlazor/Components/Button/MudButton.razor.cs", false)]
+    [InlineData("src/MudBlazor/Components/TestComponentBase.cs", false)]
+    [InlineData("src/Latest/Contest.cs", false)]
+    public void Test_code_is_recognised(string path, bool expected) => Assert.Equal(expected, AreaRules.IsTest(path));
 }

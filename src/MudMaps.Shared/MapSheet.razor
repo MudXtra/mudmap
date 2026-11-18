@@ -1,0 +1,46 @@
+@* The detail sheet for a room or a repo: a MudXSheet from the right on wide screens, from the bottom on phones.
+   It is a standard (non-modal) sheet, so the map stays clickable while it is open; drag the handle to resize. *@
+<MudHidden Breakpoint="Breakpoint.SmAndDown">
+    <MudXSheet Open="IsOpen" OpenChanged="OpenChangedAsync" Position="Position.Right" Standard
+               CurrentSize="32" PresetSizes="@(new[] { 25, 32, 45, 60 })" AriaLabel="@Label" Class="mm-sheet">
+        @Content
+    </MudXSheet>
+</MudHidden>
+<MudHidden Breakpoint="Breakpoint.MdAndUp">
+    <MudXSheet Open="IsOpen" OpenChanged="OpenChangedAsync" Position="Position.Bottom" Standard
+               CurrentSize="55" PresetSizes="@(new[] { 30, 55, 85 })" AriaLabel="@Label" Class="mm-sheet">
+        @Content
+    </MudXSheet>
+</MudHidden>
+
+@code {
+    [Parameter] public Cluster? Room { get; set; }
+    [Parameter] public RepoInfo? Repo { get; set; }
+    /// <summary>The repository the open room belongs to, for its links.</summary>
+    [Parameter] public RepoInfo? RoomRepo { get; set; }
+    [Parameter] public int WindowDays { get; set; } = 30;
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    private bool IsOpen => Room is not null || Repo is not null;
+
+    private string Label => Repo is not null ? $"{Repo.Name} details" : Room is not null ? $"{MapData.RoomName(Room)} details" : "Details";
+
+    private RenderFragment Content => __builder =>
+    {
+        <div class="mm-sheet-body pa-4">
+            @if (Repo is not null)
+            {
+                <RepoPanel Repo="Repo" WindowDays="WindowDays" OnClose="OnClose" />
+            }
+            else if (Room is not null)
+            {
+                <RoomPanel Cluster="Room" Repo="RoomRepo" OnClose="OnClose" />
+            }
+        </div>
+    };
+
+    private async Task OpenChangedAsync(bool open)
+    {
+        if (!open && IsOpen) await OnClose.InvokeAsync();
+    }
+}

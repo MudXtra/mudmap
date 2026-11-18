@@ -6,6 +6,9 @@ public static class MapComposer
     public const string MudBlazor = "MudBlazor";
     public const string Extensions = "MudBlazor.Extensions";
 
+    /// <summary>How many of a room's pull requests are listed by number (newest first).</summary>
+    public const int MaxRoomPrs = 12;
+
     /// <summary>Repository facts plus who opened the most pull requests in the window (ties go to more merged).</summary>
     public static RepoHighlightsDto? Highlights(RepoFacts? facts, IReadOnlyList<PullRequestInfo> prs)
     {
@@ -57,6 +60,7 @@ public static class MapComposer
                 : [];
             var hoodPrs = new Dictionary<string, int>();
             var roomPrs = new Dictionary<string, int>();
+            var roomPrNumbers = new Dictionary<string, List<int>>();
             var roomIds = g.Rooms.Select(r => r.Id).ToHashSet();
             foreach (var pr in prs)
             {
@@ -71,21 +75,29 @@ public static class MapComposer
                     }
                 }
                 foreach (var hk in hitHoods) hoodPrs[hk] = hoodPrs.GetValueOrDefault(hk) + 1;
-                foreach (var r in hitRooms) roomPrs[r] = roomPrs.GetValueOrDefault(r) + 1;
+                foreach (var r in hitRooms)
+                {
+                    roomPrs[r] = roomPrs.GetValueOrDefault(r) + 1;
+                    if (!roomPrNumbers.TryGetValue(r, out var nums)) roomPrNumbers[r] = nums = [];
+                    nums.Add(pr.Number);
+                }
             }
 
-            foreach (var (key, area, size) in g.Areas)
+            foreach (var (key, area, size, testSize) in g.Areas)
             {
-                hoods.Add(new HoodDto(key, AreaRules.Label(area), g.Name, size, hoodPrs.GetValueOrDefault(key)));
+                hoods.Add(new HoodDto(key, AreaRules.Label(area), g.Name, size, hoodPrs.GetValueOrDefault(key), testSize));
             }
             if (g.HasOther)
             {
-                hoods.Add(new HoodDto(g.OtherKey, "Everything else", g.Name, g.OtherSize, hoodPrs.GetValueOrDefault(g.OtherKey)));
+                hoods.Add(new HoodDto(g.OtherKey, "Everything else", g.Name, g.OtherSize, hoodPrs.GetValueOrDefault(g.OtherKey), g.OtherTestSize));
             }
-            clusters.AddRange(g.Rooms.Select(r => new ClusterDto(r.Id, r.Hood, r.N, r.Dir, r.Top, roomPrs.GetValueOrDefault(r.Id), r.Name)));
+            clusters.AddRange(g.Rooms.Select(r => new ClusterDto(r.Id, r.Hood, r.N, r.Dir, r.Top, roomPrs.GetValueOrDefault(r.Id), r.Name, r.TestN, r.Path,
+                roomPrNumbers.TryGetValue(r.Id, out var nums) ? nums.OrderByDescending(n => n).Take(MaxRoomPrs).ToList() : null)));
 
-            repos.Add(new RepoDto(g.Name, g.FullName, act?.Url ?? $"https://github.com/{g.FullName}", act?.Stars ?? 0,
-                prs.Count, prs.Count(p => p.MergedAt is not null), g.Nodes, g.BuiltAtCommit, Highlights(act?.Facts, prs)));
+            var url = act?.Url ?? $"https://github.com/{g.FullName}";
+            repos.Add(new RepoDto(g.Name, g.FullName, url, act?.Stars ?? 0,
+                prs.Count, prs.Count(p => p.MergedAt is not null), g.Nodes, g.BuiltAtCommit, Highlights(act?.Facts, prs),
+                g.TestNodes, g.LicenseFile is null ? null : $"https://github.com/{g.FullName}/blob/HEAD/{Uri.EscapeDataString(g.LicenseFile)}"));
         }
 
         // Extension repos reaching into MudBlazor's types become roads between repos.

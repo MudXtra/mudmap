@@ -1,0 +1,20 @@
+@* A name that may not fit: cut with an ellipsis, full name in a tooltip on hover or focus. *@
+@if (Text.Length <= Max)
+{
+    <span class="mm-fit @Class">@Text</span>
+}
+else
+{
+    <MudTooltip Text="@Text" Arrow Placement="Placement.Top" Inline>
+        <span class="mm-fit @Class" tabindex="0" aria-label="@Text">@Cut(Text, Max)</span>
+    </MudTooltip>
+}
+
+@code {
+    [Parameter, EditorRequired] public string Text { get; set; } = "";
+    [Parameter] public int Max { get; set; } = 28;
+    [Parameter] public string? Class { get; set; }
+
+    /// <summary>The text cut to <paramref name="max"/> characters with a trailing ellipsis. SVG labels use this with a &lt;title&gt;.</summary>
+    public static string Cut(string text, int max) => text.Length <= max ? text : text[..Math.Max(1, max - 1)].TrimEnd() + "…";
+}

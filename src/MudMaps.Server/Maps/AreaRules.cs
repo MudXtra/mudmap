@@ -68,6 +68,13 @@ public static partial class AreaRules
         return rest.Length >= 2 ? Norm(rest[0]) : "Core";
     }
 
+    // Folders match in any case; the file suffix needs a capital T so "Contest.cs" is not a test.
+    [GeneratedRegex(@"(?i:(^|/)(tests?|unittests?|testcomponents|__tests__|specs?|[^/]*\.(unit)?tests?)/)|Tests?\.(cs|razor|razor\.cs)$|\.(test|spec)\.(ts|js)$")]
+    private static partial Regex TestPath();
+
+    /// <summary>True for test code: a tests folder or project, or a *Tests.cs / *.test.ts file.</summary>
+    public static bool IsTest(string? path) => !string.IsNullOrEmpty(path) && TestPath().IsMatch(path);
+
     public static string Label(string key) => Labels.TryGetValue(key, out var l) ? l : WordBreak().Replace(key, " ");
 
     public static string Slug(string name) => Regex.Replace(name.ToLowerInvariant(), "[^a-z0-9]+", "-").Trim('-');

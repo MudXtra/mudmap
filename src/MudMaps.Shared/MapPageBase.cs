@@ -19,6 +19,16 @@ public abstract class MapPageBase : ComponentBase
     [Inject] protected NavigationManager Nav { get; set; } = default!;
 
     protected MapData? Data;
+    private MapData? _full;
+
+    /// <summary>Whether test code counts toward areas and rooms ("Include Tests" under the map).</summary>
+    protected bool IncludeTests { get; private set; } = true;
+
+    /// <summary>True when the data says which code is tests, so the toggle can work.</summary>
+    protected bool TestsKnown => _full?.KnowsTests ?? false;
+
+    /// <summary>How many mapped items are test code.</summary>
+    protected int TestItems => _full?.Repos?.Sum(r => r.TestNodes) ?? 0;
     protected ElementReference Svg;
     protected Hood? CurrentHood;
     protected Cluster? CurrentRoom;
@@ -58,7 +68,8 @@ public abstract class MapPageBase : ComponentBase
 
     private void Apply(MapData data)
     {
-        Data = data;
+        _full = data;
+        Data = IncludeTests || !data.KnowsTests ? data : data.WithoutTests();
         var repos = Data.Repos ?? [];
         Figures =
         [
@@ -73,19 +84,56 @@ public abstract class MapPageBase : ComponentBase
     private async Task RefreshAsync()
     {
         var data = await DataService.LoadLiveAsync();
-        await InvokeAsync(async () =>
+        await InvokeAsync(() => RedrawAsync(data));
+    }
+
+    /// <summary>Switch test code on or off and redraw, keeping the zoom where the area still exists.</summary>
+    protected async Task SetIncludeTestsAsync(bool include)
+    {
+        if (include == IncludeTests || _full is null) return;
+        IncludeTests = include;
+        await RedrawAsync(_full);
+    }
+
+    private async Task RedrawAsync(MapData data)
+    {
+        Apply(data);
+        if (CurrentHood is { } open)
         {
-            Apply(data);
-            if (CurrentHood is { } open && data.Hoods.FirstOrDefault(h => h.Key == open.Key) is { } hood)
+            if (Data!.Hoods.FirstOrDefault(h => h.Key == open.Key) is { } hood)
             {
                 CurrentHood = hood;
                 Rooms = LayoutRooms(hood, Focus(hood));
-                if (CurrentRoom is { } room) CurrentRoom = data.Clusters.FirstOrDefault(c => c.Id == room.Id);
+                if (CurrentRoom is { } room) CurrentRoom = Data.Clusters.FirstOrDefault(c => c.Id == room.Id);
             }
-            SetTrail();
-            StateHasChanged();
-            await OnMapUpdatedAsync();
-        });
+            else
+            {
+                // The area was only tests: back out to the whole map.
+                CurrentHood = null;
+                CurrentRoom = null;
+                Rooms = [];
+                await Zoom.ZoomToAsync(Svg, 0, 0, ViewWidth, ViewHeight);
+            }
+        }
+        if (CurrentRepo is { } repo) CurrentRepo = Data!.Repos?.FirstOrDefault(r => r.FullName == repo.FullName);
+        SetTrail();
+        StateHasChanged();
+        await OnMapUpdatedAsync();
+    }
+
+    /// <summary>The repository a room belongs to, for the detail sheet's links.</summary>
+    protected RepoInfo? RepoOf(Cluster? room)
+    {
+        if (room is null || Data is null) return null;
+        var repo = Data.Hoods.FirstOrDefault(h => h.Key == room.Hood)?.Repo;
+        return Data.Repos?.FirstOrDefault(r => r.Name == repo);
+    }
+
+    /// <summary>Close whichever detail is open in the sheet.</summary>
+    protected void CloseDetails()
+    {
+        CurrentRepo = null;
+        CloseRoom();
     }
 
     /// <summary>Runs after a live update has been drawn (refresh animations here).</summary>

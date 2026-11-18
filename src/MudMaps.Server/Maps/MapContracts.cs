@@ -2,14 +2,15 @@ namespace MudMaps.Server.Maps;
 
 // The JSON the map apps read. Same shape as tools/build_data.py's mud-v2.json.
 
-public sealed record HoodDto(string Key, string Label, string Repo, int Size, int Prs);
+public sealed record HoodDto(string Key, string Label, string Repo, int Size, int Prs, int TestSize = 0);
 
 public sealed record RoadDto(string A, string B, int W);
 
-public sealed record ClusterDto(string Id, string Hood, int N, string Dir, IReadOnlyList<string> Top, int Prs, string Name);
+public sealed record ClusterDto(string Id, string Hood, int N, string Dir, IReadOnlyList<string> Top, int Prs, string Name, int TestN = 0, string Path = "",
+    IReadOnlyList<int>? PrNumbers = null);
 
 public sealed record RepoDto(string Name, string FullName, string Url, int Stars, int Prs, int Merged, int Nodes, string? Built,
-    RepoHighlightsDto? Highlights = null);
+    RepoHighlightsDto? Highlights = null, int TestNodes = 0, string? LicenseUrl = null);
 
 /// <summary>The headline facts shown when someone clicks a repository.</summary>
 public sealed record RepoHighlightsDto(

@@ -1,0 +1,24 @@
+@* Map options under the map: show or hide test code. *@
+<MudPaper Elevation="0" Class="mm-controls px-3 py-1 mt-2" role="group" aria-label="Map options">
+    <MudStack Row AlignItems="AlignItems.Center" Spacing="3" Wrap="Wrap.Wrap">
+        <MudTooltip Text="@(Available ? "Count test code in areas and rooms" : "This snapshot does not say which code is tests")">
+            <MudCheckBox T="bool" Value="IncludeTests" ValueChanged="IncludeTestsChanged" Disabled="!Available" Color="Color.Primary"
+                         Label="Include Tests" Size="Size.Small" />
+        </MudTooltip>
+        @if (Available && TestItems > 0)
+        {
+            <MudText Typo="Typo.caption" Class="mud-text-secondary">@TestItems.ToString("N0", System.Globalization.CultureInfo.InvariantCulture) test items @(IncludeTests ? "shown" : "hidden")</MudText>
+        }
+        @ChildContent
+    </MudStack>
+</MudPaper>
+
+@code {
+    [Parameter] public bool IncludeTests { get; set; } = true;
+    [Parameter] public EventCallback<bool> IncludeTestsChanged { get; set; }
+    /// <summary>False when the data has no test counts (the baked-in snapshot).</summary>
+    [Parameter] public bool Available { get; set; } = true;
+    [Parameter] public int TestItems { get; set; }
+    /// <summary>Extra controls a map adds to the bar.</summary>
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

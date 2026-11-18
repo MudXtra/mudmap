@@ -14,3 +14,14 @@ html, body { overflow-x: clip; }
 .mm-hot:focus-visible { outline: 1.5px solid var(--mud-palette-primary); outline-offset: 2px; }
 .mm-note { max-width: 72ch; padding-top: 16px; }
 @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+/* Hover lift for clickable map shapes: a hair bigger and raised. Apps add mm-pop to an area's <g>. */
+.mm-pop { transform-box: fill-box; transform-origin: center; transition: transform .18s ease, filter .18s ease; }
+.mm-pop:hover, .mm-pop:focus-visible { transform: scale(1.045); filter: drop-shadow(0 6px 8px rgb(0 0 0 / .28)); }
+@media (prefers-reduced-motion: reduce) { .mm-pop { transition: none; } .mm-pop:hover, .mm-pop:focus-visible { transform: none; } }
+/* Names that may not fit: one line with an ellipsis; the full name is in a tooltip. */
+.mm-fit { display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom; }
+.mm-min0 { min-width: 0; }
+.mm-code { font-family: ui-monospace, "IBM Plex Mono", monospace; font-size: .85em; }
+.mm-facts td:first-child { color: var(--mud-palette-text-secondary); }
+.mm-sheet-body { overflow-wrap: anywhere; }
+.mm-controls { background: transparent; }
