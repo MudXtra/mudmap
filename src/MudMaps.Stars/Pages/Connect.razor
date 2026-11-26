@@ -1,0 +1,14 @@
+@page "/connect"
+@inject NavigationManager Nav
+
+<PageTitle>Connect via MCP · The Mud system</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.False" Gutters="false" Class="mm-wrap">
+    <MudStack Spacing="6">
+        <div>
+            <MudText Typo="Typo.h4" Class="mm-title">Connect via MCP</MudText>
+            <MudButton Href="@Nav.BaseUri" Variant="Variant.Text" Size="Size.Small">Back to the star systems</MudButton>
+        </div>
+        <McpConnect />
+    </MudStack>
+</MudContainer>

@@ -1,0 +1,101 @@
+@* The "Connect via MCP" page, reachable from Space and City. The limits come
+   from the live service when it answers and from McpFacts when it does not, so the page cannot drift from the build. *@
+@using System.Net.Http.Json
+@inject HttpClient Http
+
+<MudStack Spacing="6" Class="mm-connect">
+    <div>
+        <MudText Typo="Typo.h5">Endpoint</MudText>
+        @foreach (var endpoint in McpFacts.Endpoints)
+        {
+            <MudText Typo="Typo.body1" Class="mm-connect-endpoint">@endpoint</MudText>
+        }
+        <MudText Typo="Typo.body2" Class="mud-text-secondary">@McpFacts.Transport</MudText>
+        <MudText Typo="Typo.body2" Class="mud-text-secondary">
+            Server <strong>@McpFacts.Server</strong>@(_version is null ? "" : " " + _version) · MCP protocol @McpFacts.Protocol
+        </MudText>
+        <MudText Typo="Typo.body2" Class="mud-text-secondary"><strong>Sign-in:</strong> @McpFacts.SignInNote</MudText>
+        <MudText Typo="Typo.body2" Class="mud-text-secondary"><strong>Rate limits:</strong> @McpFacts.AddressNote</MudText>
+    </div>
+
+    <div>
+        <MudText Typo="Typo.h5">Tools (@McpFacts.Tools.Count)</MudText>
+        <MudStack Row Wrap="Wrap.Wrap" AlignItems="AlignItems.Center" Spacing="1">
+            @foreach (var tool in McpFacts.Tools)
+            {
+                <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Class="mm-connect-tool">@tool</MudChip>
+            }
+        </MudStack>
+    </div>
+
+    <div>
+        <MudText Typo="Typo.h5">Limits, as configured</MudText>
+        <MudSimpleTable Dense="true" Hover="true" Class="mm-connect-limits">
+            <thead>
+                <tr><th>Limit</th><th>Value</th><th>Setting</th></tr>
+            </thead>
+            <tbody>
+                @foreach (var (label, value, source) in Limits)
+                {
+                    <tr><td>@label</td><td>@value</td><td><code>@source</code></td></tr>
+                }
+            </tbody>
+        </MudSimpleTable>
+        <MudText Typo="Typo.body2" Class="mud-text-secondary">@McpFacts.RateLimitNote</MudText>
+        <MudText Typo="Typo.body2" Class="mud-text-secondary">@McpFacts.TruncationNote</MudText>
+    </div>
+
+    <div>
+        <MudText Typo="Typo.h5">Repositories in scope (@McpFacts.Repos.Count)</MudText>
+        <MudText Typo="Typo.body2" Class="mud-text-secondary">@string.Join(" · ", McpFacts.Repos)</MudText>
+    </div>
+
+    <div>
+        <MudText Typo="Typo.h5">Add it to a client</MudText>
+        <MudText Typo="Typo.caption" Class="mud-text-secondary">Claude Code (CLI)</MudText>
+        <pre class="mm-connect-code">@McpFacts.ClaudeCli</pre>
+    </div>
+</MudStack>
+
+@code {
+    private ResearchLimits? _live;
+    // Only what the running service says; nothing is shown when it does not answer.
+    private string? _version;
+
+    /// <summary>The limits from the running service, or the published defaults when it does not answer.</summary>
+    private IReadOnlyList<(string Label, string Value, string Source)> Limits => _live is { } l
+        ?
+        [
+            ("Calls per client", $"{l.ClientCallsPerMinute} / minute (fixed window, no queue)", "ClientCallsPerMinute"),
+            ("Concurrent calls per client", l.ClientConcurrency.ToString(), "ClientConcurrency"),
+            ("Global calls", $"{l.GlobalCallsPerMinute} / minute", "GlobalCallsPerMinute"),
+            ("triage_prs", $"{l.TriageCallsPerMinute} / minute", "TriageCallsPerMinute"),
+            ("Pull-request reads", $"{l.PrReadsPerMinute} / minute", "PrReadsPerMinute"),
+            ("Upstream queue", l.UpstreamQueue.ToString(), "UpstreamQueue"),
+            ("Upstream timeout", $"{l.UpstreamTimeoutSeconds:0.##} s", "UpstreamTimeoutSeconds"),
+            ("Overall timeout", $"{l.OverallTimeoutSeconds:0.##} s", "OverallTimeoutSeconds"),
+            ("Max request size", KiB(l.MaxRequestBytes), "MaxRequestBytes"),
+            ("Max response size", KiB(l.MaxResponseBytes), "MaxResponseBytes"),
+            ("Graphs loaded at once", l.MaxContexts.ToString(), "MaxContexts"),
+            ("Interpreter memory cap", $"{l.RssLimitMiB / 1024.0:0.##} GiB", "RssLimitMiB"),
+        ]
+        : McpFacts.Limits;
+
+    private static string KiB(int bytes) => $"{bytes / 1024} KiB";
+
+    protected override async Task OnInitializedAsync()
+    {
+        // The service sits one level above the app, as api/map does; when it is off the defaults above stand in.
+        try
+        {
+            using var response = await Http.GetAsync("../api/research/limits");
+            if (!response.IsSuccessStatusCode) return;
+            _live = await response.Content.ReadFromJsonAsync<ResearchLimits>();
+            _version = _live?.ServerVersion;
+        }
+        catch
+        {
+            _live = null; // rendered from the published defaults
+        }
+    }
+}

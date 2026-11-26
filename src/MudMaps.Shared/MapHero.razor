@@ -1,17 +1,27 @@
-@* Page head: a title, one sentence and three real figures. *@
+@using System.Globalization
+@implements IDisposable
+@inject MapScope Scope
+@* Page head: a title, one sentence and three real figures. The figures follow the repo in view (zoomed or selected)
+   and name it; with nothing selected they cover the whole map. *@
 <MudGrid Spacing="6" Class="mm-hero" Justify="Justify.SpaceBetween">
-    <MudItem xs="12" md="7">
-        <MudText Typo="Typo.h1" Class="mm-title">@Title</MudText>
+    <MudItem xs="12" md="7" Class="mm-hero-head d-flex flex-column">
+        <MudText Typo="Typo.h1" Class="mm-title" Style="@TitleFit">@Title</MudText>
         <MudText Typo="Typo.subtitle1" Class="mm-lede">@Lede</MudText>
+        @* The nav goes under the lede, level with the figures, not inside the figures block. *@
+        @if (Nav is not null)
+        {
+            <div class="mm-hero-nav" style="margin-top:auto">@Nav</div>
+        }
     </MudItem>
-    <MudItem xs="12" md="5" Class="d-flex align-end">
+    <MudItem xs="12" md="5" Class="d-flex flex-column justify-end">
+        <MudText Typo="Typo.body2" Class="mm-fig-scope" aria-live="polite">@ScopeLabel</MudText>
         <MudStack Row Spacing="4" Justify="Justify.FlexEnd" Class="mm-figs" Style="width:100%">
-            @foreach (var (value, label) in Figures)
+            @foreach (var (value, label) in Shown)
             {
-                <div class="mm-fig">
+                <MudPaper Elevation="0" Square Class="mm-fig">
                     <MudText Typo="Typo.h3" Class="mm-fig-value">@value</MudText>
-                    <MudText Typo="Typo.caption" Class="mm-fig-label">@label</MudText>
-                </div>
+                    <MudText Typo="Typo.body2" Class="mm-fig-label">@label</MudText>
+                </MudPaper>
             }
         </MudStack>
     </MudItem>
@@ -20,5 +30,40 @@
 @code {
     [Parameter, EditorRequired] public string Title { get; set; } = "";
     [Parameter, EditorRequired] public string Lede { get; set; } = "";
+    /// <summary>Whole-map figures: pull requests, merged, repos. The labels are the map's own words for them.</summary>
     [Parameter, EditorRequired] public IReadOnlyList<(string Value, string Label)> Figures { get; set; } = [];
+
+    /// <summary>The app's navigation: the MCP link and the Space / City switch. Only Space and City pass it.</summary>
+    [Parameter] public RenderFragment? Nav { get; set; }
+
+    /// <summary>Sizes the title so its longest word fits the column on a phone instead of breaking mid-word.</summary>
+    private string TitleFit => $"--mm-title-chars:{Title.Split(' ', StringSplitOptions.RemoveEmptyEntries).DefaultIfEmpty("").Max(w => w.Length)}";
+
+    private string ScopeLabel => Scope.Stats is { Repo: { } repo }
+        ? $"{repo}, last {Scope.WindowDays} days"
+        : $"All repos, last {Scope.WindowDays} days";
+
+    /// <summary>The page's figures, or the same figures for the repo in view, with its area count in place of the repo count.</summary>
+    private IReadOnlyList<(string Value, string Label)> Shown
+    {
+        get
+        {
+            if (Scope.Stats is not { Repo: not null } s || Figures.Count < 3) return Figures;
+            return
+            [
+                (N(s.Prs), Figures[0].Label),
+                (N(s.Merged), Figures[1].Label),
+                (N(s.Areas), s.Areas == 1 ? "area mapped" : "areas mapped"),
+                .. Figures.Skip(3),
+            ];
+        }
+    }
+
+    private static string N(int n) => n.ToString(CultureInfo.InvariantCulture);
+
+    protected override void OnInitialized() => Scope.Changed += OnScopeChanged;
+
+    private void OnScopeChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose() => Scope.Changed -= OnScopeChanged;
 }

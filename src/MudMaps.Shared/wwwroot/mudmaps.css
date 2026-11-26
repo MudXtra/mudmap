@@ -1,8 +1,12 @@
+/* MudX's sheet styles (size limits and scrolling for MapSheet). Imported here so every app gets them. */
+@import url("../MudX.MudBlazor.Extension/mudx.min.css");
+
 /* Shared structure for the map apps; each app's theme sets the colours. */
 html, body { overflow-x: clip; }
 .mm-wrap { max-width: 1240px; margin: 0 auto; padding: 0 32px 40px; }
+.mm-wrap.mud-container { width: auto; }
+.mm-fig, .mm-sheet-body { background: transparent; }
 .mm-hero { padding-top: 32px; padding-bottom: 16px; }
-.mm-title { text-wrap: balance; overflow-wrap: break-word; min-width: 0; }
 .mm-lede { margin-top: 16px; max-width: 40ch; }
 .mm-fig-value { font-variant-numeric: tabular-nums lining-nums; line-height: 1; }
 .mm-trail { min-height: 48px; }
@@ -21,7 +25,148 @@ html, body { overflow-x: clip; }
 /* Names that may not fit: one line with an ellipsis; the full name is in a tooltip. */
 .mm-fit { display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom; }
 .mm-min0 { min-width: 0; }
-.mm-code { font-family: ui-monospace, "IBM Plex Mono", monospace; font-size: .85em; }
-.mm-facts td:first-child { color: var(--mud-palette-text-secondary); }
-.mm-sheet-body { overflow-wrap: anywhere; }
+.mm-code { font-family: ui-monospace, "IBM Plex Mono", monospace; font-size: .875rem; }
 .mm-controls { background: transparent; }
+
+/* Readable text (sentence case, untracked, 14px labels, 16px running text, strong contrast on any theme).
+   --mm-quiet is the softer text colour: mostly the text colour, never the theme's pale secondary grey. */
+:root { --mm-quiet: color-mix(in srgb, var(--mud-palette-text-primary) 82%, var(--mud-palette-background)); }
+.mm-quiet { color: var(--mm-quiet); }
+.mm-controls-note, .mm-fig-label, .mm-fig-scope, .mm-sheet-heading,
+.mm-controls .mud-checkbox .mud-typography, .mm-trail .mud-button-root { text-transform: none; letter-spacing: normal; }
+.mm-controls-note { color: var(--mud-palette-text-primary); font-size: .875rem; font-variant-numeric: tabular-nums; }
+.mm-controls .mud-checkbox .mud-typography { font-size: 1rem; color: var(--mud-palette-text-primary); }
+.mm-trail .mud-button-root { font-size: .875rem; }
+.mm-fig-label { font-size: .875rem; line-height: 1.3; margin-top: 6px; color: var(--mm-quiet); }
+.mm-fig-scope { font-size: .875rem; font-weight: 600; text-align: right; margin-bottom: 8px; color: var(--mud-palette-text-primary); overflow-wrap: anywhere; }
+
+/* Page title: the longest word always fits its column, so phones never break a word in two.
+   MapHero sets --mm-title-chars; a map can set --mm-title-em (average letter width in em) for a wide or narrow face. */
+.mm-hero-head { container-type: inline-size; }
+.mm-hero .mm-title.mud-typography-h1 {
+    font-size: min(var(--mud-typography-h1-size, 4rem), calc(100cqi / var(--mm-title-chars, 8) / var(--mm-title-em, .62))) !important;
+    text-wrap: balance; overflow-wrap: normal; word-break: normal; hyphens: manual; min-width: 0;
+}
+@media (max-width: 599.98px) { .mm-wrap { padding: 0 16px 32px; } }
+
+/* Detail sheet. Desktop: a side sheet at most 420px or 35% wide that pushes the page over instead of covering it,
+   so the map and its figures stay in view. Phone and tablet: a bottom sheet, at most 55% of the height, scrolling
+   inside, with the map above it (MapSheet scrolls the map up when it opens). */
+:root { --mm-side: min(420px, 35vw); }
+div[mudsheet].mud-sheet-position-right:has(.mm-sheet) {
+    position: fixed !important; top: 0 !important; bottom: 0 !important; left: auto !important; right: 0 !important;
+    width: var(--mm-side) !important; max-width: var(--mm-side) !important; height: 100dvh !important; max-height: 100dvh !important;
+}
+@media (min-width: 960px) {
+    .mm-wrap { transition: margin .35s cubic-bezier(.4, 0, .2, 1); }
+    body:has(div[mudsheet].mud-sheet-position-right .mm-sheet) .mm-wrap {
+        margin-left: max(0px, calc((100vw - 1240px - var(--mm-side)) / 2));
+        margin-right: max(var(--mm-side), calc((100vw - 1240px + var(--mm-side)) / 2));
+    }
+}
+@media (prefers-reduced-motion: reduce) { .mm-wrap { transition: none; } }
+div[mudsheet].mud-sheet-position-bottom:has(.mm-sheet) {
+    position: fixed !important; top: auto !important; bottom: 0 !important; left: 0 !important; right: 0 !important;
+    width: 100% !important; min-width: 0 !important; max-width: 640px !important; margin: 0 auto;
+    max-height: 55dvh !important;
+}
+body:has(div[mudsheet].mud-sheet-position-bottom .mm-sheet) .mm-wrap { padding-bottom: 56dvh; }
+div[mudsheet].mud-sheet-position-bottom .mud-sheet-container.mm-sheet { border-radius: 16px 16px 0 0; }
+div[mudsheet] .mm-sheet .mud-sheet-content { padding: 0; min-height: 0; }
+.mm-sheet .mud-sheet-handle { min-height: 40px; }
+.mm-sheet-body { overflow-wrap: anywhere; padding: 4px 20px 20px !important; font-size: 1rem; }
+.mm-sheet-heading { font-weight: 600; color: var(--mud-palette-text-primary); }
+.mm-sheet .mud-simple-table table td { font-size: .9375rem; line-height: 1.4; }
+.mm-facts td:first-child { color: var(--mm-quiet); }
+/* Links in the sheet: the theme colour pulled toward the text colour so small links pass contrast on any background. */
+.mm-sheet a.mud-link, .mm-sheet .mud-link { color: color-mix(in srgb, var(--mud-palette-primary) 62%, var(--mud-palette-text-primary)); text-underline-offset: 2px; }
+.mm-sheet a.mud-link:hover { text-decoration: underline; }
+
+/* Footer under the map: one quiet line (sponsor, data age, credits). Sentence case, small, the softer text colour. */
+.mm-footer { color: var(--mm-quiet); }
+.mm-footer .mud-button-root, .mm-footer .mud-menu .mud-button-root { text-transform: none; letter-spacing: normal; font-size: .875rem; font-weight: 400; color: var(--mm-quiet); }
+.mm-footer .mud-button-root:hover, .mm-footer .mud-button-root:focus-visible { color: var(--mud-palette-text-primary); }
+.mm-footer-age { color: var(--mm-quiet); font-variant-numeric: tabular-nums; }
+.mm-footer-age.mud-warning-text { color: var(--mud-palette-warning); font-weight: 500; }
+.mm-footer-icon { vertical-align: -.25em; margin-right: 2px; }
+.mm-license { min-width: 4.5rem; justify-content: center; }
+.mm-credits { max-width: calc(100vw - 16px); }
+.mm-credit-name { min-width: 0; overflow-wrap: anywhere; }
+.mm-credits .mud-chip { flex: none; }
+
+/* Research (Space and City): the search lens above the map, the research drawer and the review board beside it, and the
+   lens and conflict marks on the map. Colours come from the theme palette; nothing here adds a font or a colour. */
+:root { --mm-drawer: min(440px, 100vw); --mm-danger: var(--mud-palette-error); }
+.mm-search { background: transparent; position: relative; }
+.mm-search-main { flex: 2 1 380px; }
+.mm-search-field { flex: 1 1 auto; }
+.mm-search-pr { flex: 1 1 280px; min-width: 240px; }
+.mm-scope-chip { flex: none; text-transform: none; }
+
+/* The hero nav: the MCP link and the Space / City switch, under the lede. The MCP link is a
+   one-button group built like the switch, so both are the same height and type size. */
+.mm-hero-nav { padding-top: 12px; }
+.mm-nav-mcp { flex: none; }
+/* The app you are on is the purple-filled segment. MudBlazor's group rule
+   (.mud-button-group-root.mud-button-group-override-styles .mud-button-root, three classes) resets every button's
+   background and colour, so this selector needs four classes to win. The purple and dark ink are fixed, not the Space
+   theme's --purple / --bg, because City does not define those. #020617 on #A78BFA is about 7:1. */
+.mm-nav .mud-button-group-root .mud-button-root.mm-nav-on { background-color: #A78BFA; color: #020617; font-weight: 600; cursor: default; }
+
+/* The Connect-via-MCP page. */
+.mm-connect-endpoint { overflow-wrap: anywhere; }
+.mm-connect-tool { flex: none; text-transform: none; }
+.mm-connect-code { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 12px; overflow-x: auto; font-size: .8125rem; white-space: pre-wrap; }
+.mm-grow { flex: 1 1 auto; min-width: 0; }
+.mm-search-results { position: absolute; left: 8px; right: 8px; top: calc(100% - 4px); z-index: 6; max-height: 36vh; overflow-y: auto; }
+.mm-pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+.mm-output { max-height: 40vh; overflow-y: auto; }
+.mm-community-text { max-height: 40vh; overflow-y: auto; }
+.mm-pr-title { font-weight: 500; overflow-wrap: anywhere; }
+.mm-pr-num { color: var(--mud-palette-primary); font-weight: 700; font-variant-numeric: tabular-nums; }
+.mm-pr-meta { color: var(--mm-quiet); }
+.mm-pr-tags .mud-chip { margin: 0; height: 20px; font-size: .75rem; }
+.mm-pr-blast { margin-left: auto; color: var(--mm-quiet); font-variant-numeric: tabular-nums; }
+.mm-ci { font-size: .7rem !important; vertical-align: -1px; }
+.mm-ci-success { color: var(--mud-palette-success); }
+.mm-ci-failure { color: var(--mud-palette-error); }
+.mm-ci-pending { color: var(--mud-palette-warning); }
+.mm-ci-none { color: var(--mm-quiet); }
+.mm-pr-pop .mud-list-item { border-bottom: 1px solid var(--mud-palette-divider); }
+.mm-drawer.mud-drawer-fixed { top: 0; bottom: 0; height: 100dvh; }
+.mm-drawer .mud-drawer-content { overflow-y: auto; }
+.mm-drawer-body { min-height: 0; }
+.mm-drawer-body > * { flex: none; }
+.mm-tabs .mud-tab { text-transform: none; min-width: 0; padding: 6px 7px; font-size: .875rem; }
+.mm-links .mud-list-item { padding-top: 2px; padding-bottom: 2px; }
+.mm-links .mud-button-root, .mm-links .mud-link { white-space: nowrap; flex: none; }
+.mm-lane-dot { font-size: .75rem !important; }
+.mm-lane-conflict { color: var(--mm-danger); }
+.mm-lane-waiting { color: var(--mud-palette-warning); }
+.mm-lane-ready { color: var(--mud-palette-success); }
+.mm-lane-other { color: var(--mm-quiet); }
+.mm-card { background: transparent; }
+.mm-card:hover, .mm-card:focus-visible { border-color: var(--mud-palette-primary); }
+.mm-card-conflict { border-left: 3px solid var(--mm-danger); }
+.mm-card-waiting { border-left: 3px solid var(--mud-palette-warning); }
+.mm-card-ready { border-left: 3px solid var(--mud-palette-success); }
+.mm-conflict-reason { color: var(--mm-danger); }
+/* With a research panel open beside the map, the detail sheet opens to its left instead of under it. */
+@media (min-width: 960px) {
+    body:has(.mm-drawer.mud-drawer--open) div[mudsheet].mud-sheet-position-right:has(.mm-sheet) { right: var(--mm-drawer) !important; }
+}
+
+/* The lens: lit rooms keep their colour and brighten, the rest of the map fades back. */
+.mm-dim { opacity: .2; transition: opacity .2s ease, filter .2s ease; }
+.mm-lit { filter: brightness(1.2) saturate(1.15); transition: opacity .2s ease, filter .2s ease; }
+@media (prefers-reduced-motion: reduce) { .mm-dim, .mm-lit { transition: none; } }
+/* Count badges on the whole map (lens matches) and conflict marks (review board open). */
+.mm-badge circle { fill: var(--mud-palette-primary); stroke: var(--mud-palette-background); }
+.mm-badge text { fill: var(--mud-palette-primary-text); font-weight: 700; }
+.mm-badge.mm-badge-conflict circle { fill: var(--mm-danger); }
+.mm-badge.mm-badge-conflict text { fill: #fff; }
+.mm-conflict-ring { fill: none; stroke: var(--mm-danger); }
+.mm-conflict-line { stroke: var(--mm-danger); fill: none; }
+.mm-conflict-label { fill: var(--mm-danger); font-weight: 700; paint-order: stroke; stroke: var(--mud-palette-background); }
+.mm-pin rect { fill: var(--mud-palette-background); stroke: var(--mm-danger); }
+.mm-pin text { fill: var(--mm-danger); font-weight: 700; }

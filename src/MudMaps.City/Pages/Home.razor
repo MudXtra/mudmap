@@ -3,7 +3,7 @@
 
 <PageTitle>Where Mud runs hot</PageTitle>
 
-<div class="mm-wrap">
+<MudContainer MaxWidth="MaxWidth.False" Gutters="false" Class="mm-wrap">
     @if (Data is null)
     {
         <MudProgressLinear Color="Color.Primary" Indeterminate Class="mt-8" />
@@ -11,87 +11,384 @@
     else
     {
         <MapHero Title="Where Mud runs hot."
-                 Lede="Nine repos as one city, lit by this month’s pull requests."
-                 Figures="Figures" />
+                 Lede="@($"{_cities.Count} repos as cities on one world, lit by this month’s pull requests.")"
+                 Figures="Figures">
+            <Nav><MapNav Current="city" /></Nav>
+        </MapHero>
+
+        <SearchBar />
 
         <MudStack Row Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Wrap="Wrap.Wrap">
-            <ZoomTrail Steps="Trail" />
-            <div class="mm-ramp" aria-label="Heat scale">
-                cold
+            <ZoomTrail Steps="CityTrail" />
+            <MudStack Row AlignItems="AlignItems.Center" Spacing="1" Class="mm-ramp" role="img" aria-label="Heat scale, from cold to 30 or more pull requests">
+                <MudText Typo="Typo.body2">cold</MudText>
                 @for (var i = 1; i <= 6; i++)
                 {
-                    <i style="@($"background:var(--heat-{i})")"></i>
+                    <MudPaper Elevation="0" Square Class="mm-swatch" Style="@($"background:var(--heat-{i})")" />
                 }
-                30+ pull requests
-            </div>
+                <MudText Typo="Typo.body2">30+ pull requests</MudText>
+            </MudStack>
         </MudStack>
 
-        <div class="mm-stage mt-2">
-            <svg @ref="Svg" viewBox="@($"0 0 {F(ViewWidth)} {F(ViewHeight)}")" role="img" aria-label="Isometric city of the Mud repositories">
-                @foreach (var p in _plates)
-                {
-                    <g class="mm-hot" tabindex="0" role="button" aria-label="@($"{p.Repo}: {p.Prs} pull requests. Details.")"
-                       @onclick="() => OpenRepo(p.Repo)" @onkeydown="e => KeyAsync(e, () => { OpenRepo(p.Repo); return Task.CompletedTask; })">
-                        <polygon points="@p.Points" fill="var(--paper-3)" />
-                        <text class="lab" style="@LabelStyle" x="@F(p.LabelX)" y="@F(p.LabelY)" text-anchor="middle"
-                              font-family="Boska, Georgia, serif" font-weight="500" font-size="@(p.Big ? "24" : "17")" fill="var(--ink)">@p.Repo</text>
-                        <text class="lab" style="@LabelStyle" x="@F(p.LabelX)" y="@F(p.LabelY + 18)" text-anchor="middle" font-size="12"
-                              fill="@(p.Prs > 0 ? "var(--heat-4)" : "var(--muted)")">@(p.Prs > 0 ? $"{p.Prs} pull requests" : "quiet this month")</text>
-                    </g>
-                }
+        <MudText Typo="Typo.body2" Class="city-hint">Swipe sideways to see the whole world.</MudText>
+        <MudPaper Elevation="0" Class="mm-stage mt-2">
+            <div class="city-pan">
+            <svg @ref="Svg" viewBox="@($"0 0 {F(ViewWidth)} {F(ViewHeight)}")" role="img" aria-label="Hex map of the Mud repositories, one city per repository">
+                <defs>
+                    <pattern id="farm" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(30)">
+                        <rect width="6" height="6" fill="#5f6b2c" />
+                        <rect width="3" height="6" fill="#7b8236" />
+                    </pattern>
+                    <radialGradient id="glow">
+                        <stop offset="0" stop-color="#fff" stop-opacity=".9" />
+                        <stop offset="1" stop-color="#fff" stop-opacity="0" />
+                    </radialGradient>
+                </defs>
 
-                @foreach (var b in _buildings)
-                {
-                    <g class="area mm-hot" style="@AreaStyle(b.Hood)" tabindex="0" role="button"
-                       aria-label="@($"{b.Hood.Label} in {b.Hood.Repo}, {b.Hood.Prs} pull requests. Go inside.")"
-                       @onclick="() => OpenHoodAsync(b.Hood)" @onkeydown="e => KeyAsync(e, () => OpenHoodAsync(b.Hood))">
-                        <polygon points="@b.Front" fill="@(b.Cool ? "var(--stone-x1)" : "var(--stone-1)")" />
-                        <polygon points="@b.Side" fill="@(b.Cool ? "var(--stone-x2)" : "var(--stone-2)")" />
-                        <polygon points="@b.Top" fill="@b.RoofFill" />
-                        @foreach (var w in b.Windows)
-                        {
-                            <polygon points="@w.Points" fill="@w.Fill" />
-                        }
-                        <title>@($"{b.Hood.Label}: {b.Hood.Prs} pull requests")</title>
-                    </g>
-                }
-
-                @foreach (var b in _buildings)
-                {
-                    <g pointer-events="none">
-                    <text class="lab" style="@LabelStyle" x="@F(b.LabelX)" y="@F(b.LabelY)" text-anchor="middle" font-size="11" font-weight="500"
-                          fill="@(b.Hood.Prs > 0 ? "var(--ink)" : "var(--muted)")" paint-order="stroke" stroke="var(--paper-2)" stroke-width="3"
-                          >@b.Hood.Label</text>
-                    </g>
-                }
-
-                @if (CurrentHood is not null && Rooms.Count > 0)
-                {
-                    var f = Focus(CurrentHood);
-                    <rect x="@F(f.X - f.Rx * .85)" y="@F(f.Y - f.Ry * .78)" width="@F(f.Rx * 1.7)" height="@F(f.Ry * 1.5)"
-                          rx="@F(f.Rx * .06)" fill="var(--paper-2)" opacity=".94" stroke="var(--stone-3)" stroke-width="@F(f.Rx * .008)" />
-                    @foreach (var room in Rooms)
+                @* Open land: clicking it goes up one level, from a district to its city, from a city to the world map. *@
+                <rect class="@(Level == 0 ? "ground" : "ground out")" x="-4000" y="-4000" width="9600" height="9000"
+                      fill="#0f2633" @onclick="BackgroundAsync" />
+                <g class="terrain" pointer-events="none" aria-hidden="true">
+                    @foreach (var (ground, d) in _groundPath)
                     {
-                        var level = MapData.Heat(room.Cluster.Prs);
-                        <g class="mm-hot" tabindex="0" role="button" aria-label="@($"{room.FullName}, {room.Cluster.N} code items, {room.Cluster.Prs} pull requests")"
-                           @onclick="() => OpenRoom(room)" @onkeydown="e => KeyAsync(e, () => { OpenRoom(room); return Task.CompletedTask; })">
-                            <rect x="@F(room.X - room.R * 1.2)" y="@F(room.Y - room.R * .7)" width="@F(room.R * 2.4)" height="@F(room.R * 1.4)" rx="@F(room.R * .15)"
-                                  fill="@(level > 0 ? $"var(--heat-{level})" : "var(--stone-2)")"
-                                  stroke="@(CurrentRoom == room.Cluster ? "var(--ink)" : "none")" stroke-width="@F(room.R * .06)" />
-                            <text x="@F(room.X)" y="@F(room.Y + room.FontSize * .35)" text-anchor="middle" font-size="@F(room.FontSize)" font-weight="600"
-                                  fill="@(level >= 4 ? "var(--paper)" : "var(--ink)")">@room.Name</text>
-                            <title>@room.FullName</title>
+                        <path class="@($"g-{ground.ToString().ToLowerInvariant()}")" d="@d" />
+                    }
+                    <path class="waves" d="@_waves" />
+                    @foreach (var river in _rivers)
+                    {
+                        <path class="river" d="@river" />
+                    }
+                    <path class="hillmarks" d="@_hillMarks" />
+                    <path class="trees" d="@_trees" />
+                </g>
+
+                <g id="roads" class="@(Level > 0 ? "dim" : null)" pointer-events="none" aria-hidden="true">
+                    @foreach (var r in _roads)
+                    {
+                        <path class="road-bed" d="@r.Path" />
+                        <path class="route" d="@r.Path" data-heat="@r.W" />
+                    }
+                </g>
+                <g id="traffic" class="@(Level > 0 ? "dim" : null)" pointer-events="none" aria-hidden="true"></g>
+
+                @foreach (var c in _cities)
+                {
+                    @if (Level == 0)
+                    {
+                        <g class="@($"civ-city mm-hot{LensRepoClass(c.Repo)}")" data-repo="@c.Repo" tabindex="0" role="button"
+                           aria-label="@($"{c.Repo}: {c.PrText}, {c.Districts.Count} districts. Travel there.")"
+                           data-tip="@c.Repo" data-sub="@($"{c.PrText} · {c.Districts.Count} districts")"
+                           @onclick="() => TravelToCityAsync(c.Repo)" @onkeydown="e => KeyAsync(e, () => TravelToCityAsync(c.Repo))">
+                            @CityGround(c)
+                            @foreach (var d in c.Districts)
+                            {
+                                @DistrictArt(d)
+                            }
+                            @CentreArt(c)
+                            @Banner(c)
+                        </g>
+                        @CityBadges(c)
+                    }
+                    else if (c.Repo == Inside)
+                    {
+                        <g class="civ-city here" data-repo="@c.Repo">
+                            @CityGround(c)
+                            @foreach (var d in c.Districts)
+                            {
+                                @if (Level == 1)
+                                {
+                                    <g class="@($"civ-district mm-hot mm-pop{LensClass(d.Hood)}")" tabindex="0" role="button"
+                                       aria-label="@($"{d.Label} district in {c.Repo}, {d.Hood.Prs} pull requests. Go inside.")"
+                                       data-tip="@d.Label" data-sub="@($"{c.Repo} · {d.Hood.Prs} pull requests")"
+                                       @onclick="() => TravelToDistrictAsync(d.Hood)" @onkeydown="e => KeyAsync(e, () => TravelToDistrictAsync(d.Hood))">
+                                        @DistrictArt(d)
+                                    </g>
+                                }
+                                else
+                                {
+                                    <g class="@(CurrentHood?.Key == d.Hood.Key ? "civ-district open" : "civ-district off")" pointer-events="none" aria-hidden="true">@DistrictArt(d)</g>
+                                }
+                            }
+                            @if (Level == 1)
+                            {
+                                <g class="civ-centre mm-hot mm-pop" tabindex="0" role="button" aria-label="@($"{c.Repo} city centre: open the repository details")"
+                                   data-tip="@c.Repo" data-sub="@($"City centre · {c.PrText}")"
+                                   @onclick="() => OpenRepo(c.Repo)" @onkeydown="e => KeyAsync(e, () => { OpenRepo(c.Repo); return Task.CompletedTask; })">
+                                    @CentreArt(c)
+                                </g>
+                                @* Names above all the art, so a tall house in the centre never covers a neighbour's name. *@
+                                @if (ConflictsShown)
+                                {
+                                    @DistrictConflicts(c)
+                                }
+                                <g class="civ-names" aria-hidden="true">
+                                    @foreach (var d in c.Districts)
+                                    {
+                                        @TileLabel(d.X, d.Y, d.Label, d.Heat)
+                                    }
+                                    @TileLabel(c.X, c.Y, c.Repo, c.Heat, true)
+                                </g>
+                            }
+                            else
+                            {
+                                <g class="civ-centre off" pointer-events="none" aria-hidden="true">@CentreArt(c)</g>
+                            }
+                        </g>
+                    }
+                    else
+                    {
+                        <g class="civ-city off" pointer-events="none" aria-hidden="true">
+                            @CityGround(c)
+                            @foreach (var d in c.Districts)
+                            {
+                                @DistrictArt(d)
+                            }
+                            @CentreArt(c)
                         </g>
                     }
                 }
-            </svg>
-        </div>
-        <MapControls IncludeTests="IncludeTests" IncludeTestsChanged="SetIncludeTestsAsync" Available="TestsKnown" TestItems="TestItems" />
-        <MapSheet Room="CurrentRoom" Repo="CurrentRepo" RoomRepo="RepoOf(CurrentRoom)" WindowDays="Data.WindowDays" OnClose="CloseDetails" />
 
-        <MudText Typo="Typo.body2" Class="mm-note mud-text-secondary">
-            Each district is a repo and each building one part of its code; taller holds more. Windows burn with the pull requests that touched it
-            in the last @Data.WindowDays days. Click a building to go inside and see its rooms, a room for its code, a district name for the repo.
+                @if (CurrentHood is { } hood && Rooms.Count > 0 && _districtByKey.TryGetValue(hood.Key, out var open))
+                {
+                    var panel = RoomPanel(hood);
+                    var heading = $"{hood.Label} · {hood.Repo} · {Rooms.Count} rooms";
+                    var colour = _cityByRepo.GetValueOrDefault(hood.Repo)?.Colour ?? "var(--accent)";
+                    <g class="civ-rooms" style="@($"transform-origin:{F(open.X)}px {F(open.Y)}px")">
+                        <rect class="room-panel" x="@F(panel.X)" y="@F(panel.Y)" width="@F(panel.W)" height="@F(panel.H)" rx="@F(RoomR * .3)"
+                              stroke="@colour" stroke-width="@F(RoomR * .05)" />
+                        <g aria-hidden="true">
+                            <text data-fit data-full="@heading" data-maxw="@F(panel.W * .92)" data-font="@F(panel.Head * .5)" data-maxfont="@F(panel.Head * .62)"
+                                  x="@F(panel.X + panel.W * .04)" y="@F(panel.Y + panel.Head * .78)" font-size="@F(panel.Head * .5)" font-weight="600" fill="var(--ink)">@heading</text>
+                        </g>
+                        @foreach (var room in Rooms)
+                        {
+                            var level = MapData.Heat(room.Cluster.Prs);
+                            <g class="@($"room mm-hot mm-pop{LensClass(room.Cluster)}")" tabindex="0" role="button" aria-label="@($"{room.FullName}, {room.Cluster.N} code items, {room.Cluster.Prs} pull requests")"
+                               data-tip="@room.FullName" data-sub="@($"{room.Cluster.N} code items · {room.Cluster.Prs} pull requests")"
+                               @onclick="() => OpenRoom(room)" @onkeydown="e => KeyAsync(e, () => { OpenRoom(room); return Task.CompletedTask; })">
+                                <polygon points="@HexPoints(room.X, room.Y, room.R * .97)"
+                                         fill="@(level > 0 ? $"var(--heat-{level})" : "var(--stone-2)")"
+                                         stroke="@(CurrentRoom == room.Cluster ? "var(--ink)" : colour)" stroke-width="@F(room.R * (CurrentRoom == room.Cluster ? .07 : .03))" />
+                                <g data-wrap data-full="@room.Name" data-cx="@F(room.X)" data-cy="@F(room.Y)" data-maxw="@F(room.R * 1.5)" data-maxfont="@F(room.R * .3)">
+                                    <g transform="@($"translate({F(room.X)},{F(room.Y)}) scale({F(room.FontSize / 16)})")">
+                                        <text y="5.6" text-anchor="middle" font-size="16" font-weight="600" fill="@(level >= 3 ? "var(--paper)" : "var(--ink)")">@room.Name</text>
+                                        <text y="5.6" text-anchor="middle" font-size="16" font-weight="600" fill="@(level >= 3 ? "var(--paper)" : "var(--ink)")"> </text>
+                                    </g>
+                                </g>
+                            </g>
+                        }
+                        @if (ConflictsShown)
+                        {
+                            @RoomConflicts(hood)
+                        }
+                    </g>
+                }
+                <g id="ride" pointer-events="none" aria-hidden="true"></g>
+            </svg>
+            </div>
+        </MudPaper>
+        <MapControls IncludeTests="IncludeTests" IncludeTestsChanged="SetIncludeTestsAsync" Available="TestsKnown" TestItems="TestItems" />
+        <MapSheet Room="CurrentRoom" Repo="CurrentRepo" RoomRepo="RepoOf(CurrentRoom)" WindowDays="Data.WindowDays" OnClose="CloseDetails" Research />
+
+        <MudText Typo="Typo.body1" Class="mm-note mud-text-secondary">
+            Each city is a repo: the number on its banner is its pull requests from the last @Data.WindowDays days, and its border
+            grows with its code. Travel into a city to see its districts, one for each part of its code, and into a district to see
+            its rooms. Roads join cities whose code calls each other. Click open land to travel back up a level.
         </MudText>
+        <MapFooter RepoList="Data.Repos" GeneratedAt="@Data.GeneratedAt" Research />
+        <ResearchDrawer />
+        <PrBoard />
     }
-</div>
+</MudContainer>
+
+@code {
+    /// <summary>On the world map: lens matches and conflict-risk PRs as count badges at the banner's right end.</summary>
+    private RenderFragment CityBadges(City c) => __builder =>
+    {
+        var hits = LensCount(c.Repo);
+        var risk = ConflictsShown ? ConflictCount(c.Repo) : 0;
+        var r = c.BannerFont * .85;
+        var x = c.X + c.BannerMax / 2;
+        var y = c.BannerY - c.BannerFont * .8;
+        var riskX = hits > 0 ? x + r * 2.3 : x;
+        @if (hits > 0)
+        {
+            <g class="mm-badge" pointer-events="none" aria-hidden="true" transform="@($"translate({F(x)},{F(y)})")">
+                <circle r="@F(r)" stroke-width="@F(r * .15)" />
+                <text y="@F(r * .38)" text-anchor="middle" font-size="@F(r * 1.05)">@hits</text>
+            </g>
+        }
+        @if (risk > 0)
+        {
+            <g class="mm-badge mm-badge-conflict" pointer-events="none" aria-hidden="true" transform="@($"translate({F(riskX)},{F(y)})")">
+                <circle r="@F(r)" stroke-width="@F(r * .15)" />
+                <text y="@F(r * .38)" text-anchor="middle" font-size="@F(r * 1.05)">@risk</text>
+            </g>
+        }
+    };
+
+    /// <summary>Inside a city: districts holding rooms open PRs share, ringed and labelled with the PRs.</summary>
+    private RenderFragment DistrictConflicts(City c) => __builder =>
+    {
+        var conflicts = ConflictRooms(c.Repo);
+        @if (conflicts.Count > 0)
+        {
+            <g pointer-events="none" aria-hidden="true">
+                @foreach (var d in c.Districts)
+                {
+                    var ids = Data!.ClustersOf(d.Hood.Key).Select(x => x.Id).ToHashSet();
+                    var numbers = conflicts.Where(x => ids.Contains(x.RoomId)).SelectMany(x => x.Numbers).Distinct().Order().ToList();
+                    if (numbers.Count == 0) continue;
+                    var label = new ConflictRoom(d.Hood.Key, numbers).Label;
+                    <g>
+                        <circle class="mm-conflict-ring" cx="@F(d.X)" cy="@F(d.Y)" r="@F(Hr * .98)" stroke-width="@F(Hr * .05)" stroke-dasharray="@($"{F(Hr * .16)} {F(Hr * .11)}")" />
+                        <text class="mm-conflict-label" x="@F(d.X)" y="@F(d.Y - Hr * 1.06)" text-anchor="middle" font-size="@F(Hr * .2)" stroke-width="@F(Hr * .04)">@label</text>
+                    </g>
+                }
+            </g>
+        }
+    };
+
+    /// <summary>
+    /// Inside a district: rooms open PRs share are ringed and labelled "#a + #b" (the hex already names the room); each PR in
+    /// conflict gets a pin beside its first shared room, joined to its shared rooms by dashed lines. Pins that would land on
+    /// one spot are fanned out.
+    /// </summary>
+    private RenderFragment RoomConflicts(Hood hood) => __builder =>
+    {
+        var conflicts = ConflictRooms(hood.Repo).Where(x => Rooms.Any(r => r.Cluster.Id == x.RoomId)).ToDictionary(x => x.RoomId);
+        @if (conflicts.Count > 0)
+        {
+            var at = Rooms.ToDictionary(r => r.Cluster.Id);
+            var pins = ConflictPins(hood.Repo).Where(p => p.Rooms.Any(conflicts.ContainsKey)).ToList();
+            var anchors = pins.Select(p =>
+            {
+                var mine = p.Rooms.Where(conflicts.ContainsKey).Select(id => at[id]).ToList();
+                var first = mine.OrderBy(r => r.Y).ThenBy(r => r.X).First();
+                return (first.X - RoomR * .55, first.Y - RoomR * .95);
+            }).ToList();
+            var spots = ConflictMap.Spread(anchors, RoomR * .95);
+            <g pointer-events="none" aria-hidden="true">
+                @for (var i = 0; i < pins.Count; i++)
+                {
+                    var (px, py) = spots[i];
+                    foreach (var id in pins[i].Rooms.Where(conflicts.ContainsKey))
+                    {
+                        <line class="mm-conflict-line" x1="@F(px)" y1="@F(py)" x2="@F(at[id].X)" y2="@F(at[id].Y)" stroke-width="@F(RoomR * .03)" stroke-dasharray="@($"{F(RoomR * .12)} {F(RoomR * .1)}")" />
+                    }
+                }
+                @foreach (var (id, clash) in conflicts)
+                {
+                    var room = at[id];
+                    <g>
+                        <circle class="mm-conflict-ring" cx="@F(room.X)" cy="@F(room.Y)" r="@F(room.R * 1.02)" stroke-width="@F(room.R * .04)" stroke-dasharray="@($"{F(room.R * .14)} {F(room.R * .1)}")" />
+                        <text class="mm-conflict-label" x="@F(room.X)" y="@F(room.Y + room.R * 1.2)" text-anchor="middle" font-size="@F(room.R * .17)" stroke-width="@F(room.R * .035)">@clash.Label</text>
+                    </g>
+                }
+                @for (var i = 0; i < pins.Count; i++)
+                {
+                    var (px, py) = spots[i];
+                    <g class="mm-pin" transform="@($"translate({F(px)},{F(py)})")">
+                        <rect x="@F(-RoomR * .45)" y="@F(-RoomR * .17)" width="@F(RoomR * .9)" height="@F(RoomR * .34)" rx="@F(RoomR * .17)" stroke-width="@F(RoomR * .03)" />
+                        <text y="@F(RoomR * .07)" text-anchor="middle" font-size="@F(RoomR * .2)">#@pins[i].Number</text>
+                    </g>
+                }
+            </g>
+        }
+    };
+
+    private RenderFragment CityGround(City c) => __builder =>
+    {
+        <path class="terr" d="@c.Territory" fill="@c.Colour" />
+        <path class="border" d="@c.Border" stroke="@c.Colour" />
+        @foreach (var f in c.Fields)
+        {
+            @if (f.Mine)
+            {
+                <g class="mine">
+                    <polygon points="@f.Pad" />
+                    <path d="@($"M{F(f.X - 6)},{F(f.Y + 4)}L{F(f.X)},{F(f.Y - 5)}L{F(f.X + 6)},{F(f.Y + 4)}Z")" />
+                </g>
+            }
+            else
+            {
+                <polygon class="farm" points="@f.Pad" fill="url(#farm)" />
+            }
+        }
+    };
+
+    private RenderFragment HouseArt(House h) => __builder =>
+    {
+        <polygon points="@h.Face.Front" fill="var(--stone-1)" />
+        <polygon points="@h.Face.Side" fill="var(--stone-2)" />
+        <polygon points="@h.Face.Top" fill="@h.Roof" />
+        @foreach (var w in h.Windows)
+        {
+            <polygon points="@w.Points" fill="@w.Fill" class="@(w.Lit ? "mm-win" : null)" />
+        }
+    };
+
+    private RenderFragment DistrictArt(District d) => __builder =>
+    {
+        <polygon class="pad" points="@d.Pad" />
+        @foreach (var h in d.Houses)
+        {
+            @HouseArt(h)
+        }
+    };
+
+    private RenderFragment CentreArt(City c) => __builder =>
+    {
+        @if (c.Heat > 0)
+        {
+            <circle class="civ-glow" pointer-events="none" cx="@F(c.X)" cy="@F(c.Y)" r="@F(Hr * (1.1 + c.Heat * .12))" fill="url(#glow)" style="@($"color:var(--heat-{c.Heat})")" />
+        }
+        <polygon class="walls" points="@c.Walls" />
+        @foreach (var h in c.Houses)
+        {
+            @HouseArt(h)
+        }
+        @if (c.Heat >= 3)
+        {
+            <g class="smoke" pointer-events="none">
+                <circle cx="@F(c.X - 2)" cy="@F(c.Y - Hr * .9)" r="3" />
+                <circle cx="@F(c.X + 3)" cy="@F(c.Y - Hr * .9)" r="2.4" style="animation-delay:-2.2s" />
+            </g>
+        }
+    };
+
+    /// <summary>The world map banner: pull request count in a heat badge, then the name; the browser fits the plate to the name.</summary>
+    private RenderFragment Banner(City c) => __builder =>
+    {
+        var font = c.BannerFont;
+        <g class="banner" data-banner data-cx="@F(c.X)" data-cy="@F(c.BannerY)" data-maxw="@F(c.BannerMax)">
+            <rect class="banner-plate" x="@F(c.X - c.BannerMax / 2)" y="@F(c.BannerY - font * .8)" width="@F(c.BannerMax)" height="@F(font * 1.6)" rx="@F(font * .3)" stroke="@c.Colour" />
+            <rect class="banner-badge" x="@F(c.X - c.BannerMax / 2)" y="@F(c.BannerY - font * .8)" width="@F(font * 1.8)" height="@F(font * 1.6)" rx="@F(font * .3)"
+                  fill="@(c.Heat > 0 ? $"var(--heat-{c.Heat})" : "var(--stone-3)")" />
+            <text class="banner-pop" x="@F(c.X - c.BannerMax / 2 + font * .9)" y="@F(c.BannerY + font * .35)" text-anchor="middle" font-size="@F(font * .9)"
+                  font-weight="700" fill="@(c.Heat >= 3 ? "var(--paper)" : "var(--ink)")">@c.Prs</text>
+            <text class="banner-name" data-fit data-full="@c.Repo" data-maxw="@F(c.BannerMax - font * 2.6)" data-font="@F(font)" data-maxfont="@F(font * 1.5)"
+                  x="@F(c.X - c.BannerMax / 2 + font * 2.2)" y="@F(c.BannerY + font * .35)" font-size="@F(font)" font-weight="600" fill="var(--ink)">@c.Repo</text>
+        </g>
+    };
+
+    /// <summary>
+    /// A name plate along the foot of a tile inside a city. The browser sets it at about 13 px, breaks a long name over two
+    /// lines (at a space or a capital) and cuts what still does not fit the tile (fitTiles in city.js). The text is set at
+    /// 16 units inside a scaled group: Chrome spaces glyphs badly when a font is a unit or two high and zoomed far in.
+    /// </summary>
+    private RenderFragment TileLabel(double x, double y, string name, int heat, bool centre = false) => __builder =>
+    {
+        var font = Hr * .19;
+        var ly = y + Hr * .5;
+        <g class="lab" pointer-events="none" data-wrap data-full="@name" data-cx="@F(x)" data-cy="@F(ly)" data-maxw="@F(Hw * .86)" data-maxfont="@F(Hr * .3)">
+            <rect x="@F(x - Hw * .47)" y="@F(ly - font * .75)" width="@F(Hw * .94)" height="@F(font * 1.5)"
+                  rx="@F(font * .5)" fill="var(--paper)" fill-opacity=".9"
+                  stroke="@(centre ? "var(--ink)" : heat > 0 ? $"var(--heat-{heat})" : "var(--stone-3)")" stroke-width="@F(font * .09)" />
+            <g transform="@($"translate({F(x)},{F(ly)}) scale({F(font / 16)})")">
+                <text y="5.6" text-anchor="middle" font-size="16" font-weight="@(centre ? "700" : "500")" fill="var(--ink)">@name</text>
+                <text y="5.6" text-anchor="middle" font-size="16" font-weight="@(centre ? "700" : "500")" fill="var(--ink)"> </text>
+            </g>
+        </g>
+    };
+}

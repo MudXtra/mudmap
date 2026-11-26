@@ -29,7 +29,7 @@ for pair in colony:colony city:city islands:islands stars:space; do
   mv "$out/site/$segment.new" "$out/site/$segment"
 done
 
-# Self-contained so the server carries its own patched runtime (Sentinel 02007, B1), not the host's shared framework.
+# Self-contained so the server carries its own patched runtime, not the host's shared framework.
 # Built beside the live copy and checked before the swap, so a failed check leaves the running build alone.
 rm -rf "$out/server.new"
 dotnet publish "$repo/src/MudMaps.Server" -c Release -r linux-x64 --self-contained -o "$out/server.new" -nologo -v q

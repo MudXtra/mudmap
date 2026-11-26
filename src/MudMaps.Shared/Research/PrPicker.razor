@@ -1,0 +1,66 @@
+@implements IDisposable
+@inject ResearchState State
+@* Find an open pull request by number, title, author, repo or label, from the list the service caches.
+   Arrow keys move through the matches and Enter picks one. *@
+<MudAutocomplete T="PrItem" @ref="_box" Value="Value" ValueChanged="PickAsync" SearchFunc="SearchAsync" ToStringFunc="Text"
+                 Placeholder="@Placeholder" AdornmentIcon="@Icons.Material.Filled.MergeType" Adornment="Adornment.Start"
+                 aria-label="@Placeholder" MinCharacters="0" MaxItems="8" DebounceInterval="150" Dense
+                 Variant="Variant.Outlined" Margin="Margin.Dense" Clearable OpenOnFocus SelectValueOnTab
+                 ResetValueOnEmptyText Strict="false" MaxHeight="440" OpenChanged="OpenChangedAsync" Class="@Class" PopoverClass="mm-pr-pop" ListItemClass="mm-pr-item">
+    <ItemTemplate Context="pr">
+        <PrRow Pr="pr" RepoDisplay="@State.NameOf(pr.Repo)" />
+    </ItemTemplate>
+    <BeforeItemsTemplate>
+        <MudText Typo="Typo.caption" Class="px-4 py-1 mm-quiet">@Header</MudText>
+    </BeforeItemsTemplate>
+    <NoItemsTemplate>
+        <MudText Typo="Typo.body2" Class="px-4 py-2">@(State.PrsError ?? "No open pull request matches.")</MudText>
+    </NoItemsTemplate>
+</MudAutocomplete>
+
+@code {
+    private MudAutocomplete<PrItem>? _box;
+    private int _count;
+    private string _query = "";
+
+    [Parameter] public PrItem? Value { get; set; }
+    [Parameter] public EventCallback<PrItem?> ValueChanged { get; set; }
+    [Parameter] public string Placeholder { get; set; } = "Find a PR: number, title, author, repo, label";
+    [Parameter] public string? Class { get; set; }
+    /// <summary>Raised when the list of matches opens, so a neighbouring results list can close.</summary>
+    [Parameter] public EventCallback OnOpen { get; set; }
+
+    private string Header => _query.Trim().Length == 0
+        ? $"{State.Prs.Count} open pull requests · ↑↓ to move · Enter shows impact"
+        : $"{_count} open PRs match “{_query.Trim()}” · ↑↓ to move · Enter shows impact";
+
+    private static string Text(PrItem? pr) => pr is null ? "" : $"#{pr.Number} {pr.Title}";
+
+    protected override void OnInitialized()
+    {
+        State.Changed += OnChanged;
+        _ = State.EnsurePrsAsync();
+    }
+
+    private async Task<IEnumerable<PrItem>> SearchAsync(string? text, CancellationToken ct)
+    {
+        await State.EnsurePrsAsync();
+        // The box shows the picked PR as "#123 Title"; searching that text should find the same PR.
+        _query = Value is not null && text == Text(Value) ? "" : text ?? "";
+        var matches = PrMatcher.Match(State.Prs, _query, State.NameOf, max: 8);
+        _count = _query.Trim().Length == 0 ? State.Prs.Count : PrMatcher.Match(State.Prs, _query, State.NameOf, max: int.MaxValue).Count;
+        return matches;
+    }
+
+    private Task OpenChangedAsync(bool open) => open ? OnOpen.InvokeAsync() : Task.CompletedTask;
+
+    private Task PickAsync(PrItem? pr)
+    {
+        Value = pr;
+        return ValueChanged.InvokeAsync(pr);
+    }
+
+    private void OnChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose() => State.Changed -= OnChanged;
+}

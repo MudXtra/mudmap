@@ -1,0 +1,322 @@
+@implements IDisposable
+@inject ResearchState State
+@inject IJSRuntime JS
+@* The research drawer: the graphify tools the MCP server offers, one tab each, with one repo scope for all of them.
+   Every tab can run, show its result on the map, and copy the equivalent MCP call. Results are graphify's own text,
+   rendered encoded, then the places it names. Temporary on phones, beside the map from md up. *@
+<MudDrawer Open="Open" OpenChanged="OpenChanged" Anchor="Anchor.End" Variant="DrawerVariant.Responsive" Breakpoint="Breakpoint.Md"
+           Width="var(--mm-drawer)" Elevation="2" ClipMode="DrawerClipMode.Never" Class="mm-drawer mm-research" aria-label="Research">
+    <MudStack Spacing="2" Class="pa-4 mm-drawer-body">
+        <MudStack Row AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+            <MudText Typo="Typo.h6" Class="mm-sheet-heading">Research</MudText>
+            <MudStack Row AlignItems="AlignItems.Center" Spacing="1">
+                <MudText Typo="Typo.caption" Class="mm-quiet">same tools as MCP</MudText>
+                <MudIconButton Icon="@Icons.Material.Filled.Close" Size="Size.Small" aria-label="Close research" OnClick="() => State.Open(ResearchPanelKind.None)" />
+            </MudStack>
+        </MudStack>
+        <MudSelect T="string" @bind-Value="_scope" Label="Repo scope" Variant="Variant.Outlined" Margin="Margin.Dense" Dense
+                   Disabled="@(_tab == PrImpactIndex)" HelperText="@(_tab == PrImpactIndex ? "PR impact uses the pull request's own repo" : null)">
+            <MudSelectItem T="string" Value="@All">All Mud repos</MudSelectItem>
+            @foreach (var (name, full) in State.Repos)
+            {
+                <MudSelectItem T="string" Value="@full">@name</MudSelectItem>
+            }
+        </MudSelect>
+        <MudTabs @bind-ActivePanelIndex="_tab" Elevation="0" Rounded="false" MinimumTabWidth="0px" KeepPanelsAlive
+                 TabHeaderClass="mm-tab-head" TabPanelsClass="pt-3" Class="mm-tabs">
+            <MudTabPanel Text="Query">
+                <MudStack Spacing="2">
+                    <MudTextField T="string" @bind-Value="_question" Label="Question or keywords" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                  MaxLength="300" Immediate OnKeyDown="EnterAsync" />
+                    <MudStack Row AlignItems="AlignItems.Center" Spacing="2" Wrap="Wrap.Wrap">
+                        <MudToggleGroup T="string" @bind-Value="_mode" Size="Size.Small" Color="Color.Primary" aria-label="Traversal">
+                            <MudToggleItem Value="@("bfs")" Text="BFS" />
+                            <MudToggleItem Value="@("dfs")" Text="DFS" />
+                        </MudToggleGroup>
+                        <MudSwitch T="bool" @bind-Value="_demoteDocs" Color="Color.Primary" Label="Rank code above docs" />
+                    </MudStack>
+                    <MudSlider T="int" @bind-Value="_depth" Min="1" Max="6" Step="1" ValueLabel TickMarks Color="Color.Primary">Depth @_depth</MudSlider>
+                    <MudNumericField T="int" @bind-Value="_budget" Label="Token budget" Min="100" Max="8000" Step="100" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                    <MudText Typo="Typo.caption" Class="mm-quiet">Edge contexts (none = all)</MudText>
+                    <MudChipSet T="string" @bind-SelectedValues="_contexts" SelectionMode="SelectionMode.MultiSelection" CheckMark Size="Size.Small" Variant="Variant.Outlined">
+                        @foreach (var c in Contexts)
+                        {
+                            <MudChip T="string" Value="@c" Text="@c" />
+                        }
+                    </MudChipSet>
+                </MudStack>
+            </MudTabPanel>
+            <MudTabPanel Text="Node">
+                <MudTextField T="string" @bind-Value="_node" Label="Node label or id" Variant="Variant.Outlined" Margin="Margin.Dense" MaxLength="300" Immediate OnKeyDown="EnterAsync" />
+            </MudTabPanel>
+            <MudTabPanel Text="Neighbors">
+                <MudStack Spacing="2">
+                    <MudTextField T="string" @bind-Value="_neighbor" Label="Node label or id" Variant="Variant.Outlined" Margin="Margin.Dense" MaxLength="300" Immediate OnKeyDown="EnterAsync" />
+                    <MudAutocomplete T="string" @bind-Value="_relation" Label="Relation (any when empty)" SearchFunc="RelationsAsync" CoerceText="false" CoerceValue
+                                     Strict="false" MinCharacters="0" OpenOnFocus Variant="Variant.Outlined" Margin="Margin.Dense" Clearable MaxLength="100" />
+                    <MudNumericField T="int" @bind-Value="_neighborBudget" Label="Token budget" Min="100" Max="8000" Step="100" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                </MudStack>
+            </MudTabPanel>
+            <MudTabPanel Text="Path">
+                <MudStack Spacing="2">
+                    <MudTextField T="string" @bind-Value="_source" Label="From" Variant="Variant.Outlined" Margin="Margin.Dense" MaxLength="300" Immediate />
+                    <MudTextField T="string" @bind-Value="_target" Label="To" Variant="Variant.Outlined" Margin="Margin.Dense" MaxLength="300" Immediate OnKeyDown="EnterAsync" />
+                    <MudSlider T="int" @bind-Value="_maxHops" Min="1" Max="12" Step="1" ValueLabel Color="Color.Primary">Max hops @_maxHops</MudSlider>
+                    <MudSwitch T="bool" @bind-Value="_undirected" Color="Color.Primary" Label="Undirected (ignore edge direction)" />
+                </MudStack>
+            </MudTabPanel>
+            <MudTabPanel Text="Hubs">
+                <MudStack Spacing="2">
+                    <MudSlider T="int" @bind-Value="_topN" Min="1" Max="50" Step="1" ValueLabel Color="Color.Primary">Top @_topN</MudSlider>
+                    <MudNumericField T="double?" @bind-Value="_percentile" Label="Hub percentile (hide nodes above it; empty = none)" Min="0" Max="100" Step="1"
+                                     Variant="Variant.Outlined" Margin="Margin.Dense" Clearable />
+                </MudStack>
+            </MudTabPanel>
+            <MudTabPanel Text="PR impact">
+                <MudStack Spacing="2">
+                    <PrPicker @bind-Value="_pr" Placeholder="Pull request: number, title, author, repo or label" />
+                    @if (_pr is { } pr)
+                    {
+                        <MudPaper Outlined Class="pa-2"><PrRow Pr="pr" RepoDisplay="@State.NameOf(pr.Repo)" /></MudPaper>
+                    }
+                </MudStack>
+            </MudTabPanel>
+        </MudTabs>
+
+        <MudStack Row Spacing="1" Wrap="Wrap.Wrap" AlignItems="AlignItems.Center">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="RunAsync" Disabled="@(!CanRun || _busy)">Run</MudButton>
+            <MudButton Variant="Variant.Outlined" OnClick="ShowAsync" Disabled="@(Current?.Response?.Rooms is not { Count: > 0 })">Show on map</MudButton>
+            <MudButton Variant="Variant.Outlined" OnClick="CopyAsync" Disabled="@(!CanRun && Current?.Response is null)">Copy as MCP call</MudButton>
+            @if (_copied)
+            {
+                <MudText Typo="Typo.caption" aria-live="polite">Copied</MudText>
+            }
+        </MudStack>
+
+        @if (_busy)
+        {
+            <MudProgressLinear Color="Color.Primary" Indeterminate />
+        }
+        @if (Current is { } shown)
+        {
+            @if (shown.Error is not null)
+            {
+                <ResearchError Error="@shown.Error" RetryAfter="shown.RetryAfter" OnRetry="RunAsync" />
+            }
+            else if (shown.Response is { } response)
+            {
+                <MudPaper Outlined Class="pa-2 mm-output">
+                    <MudText Typo="Typo.body2" Class="mm-code mm-pre">@response.Text</MudText>
+                </MudPaper>
+                @if (response.Links is { Count: > 0 } links)
+                {
+                    <MudStack Row Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
+                        <MudText Typo="Typo.subtitle2">Links</MudText>
+                        <MudText Typo="Typo.caption" Class="mm-quiet">@links.Count</MudText>
+                    </MudStack>
+                    <ResearchLinks Links="links" />
+                }
+            }
+        }
+    </MudStack>
+</MudDrawer>
+
+@code {
+    public const string PrImpactTab = "pr";
+    private const int PrImpactIndex = 5;
+    private const string All = "";
+    private static readonly string[] Tabs = ["query", "node", "neighbors", "path", "hubs", PrImpactTab];
+    private static readonly string[] Contexts = ["call", "import", "field", "type", "event", "module", "package", "command"];
+    private static readonly string[] Relations = ["calls", "imports", "references", "contains", "inherits", "implements", "uses", "mixes_in"];
+
+    private sealed record TabResult(ResearchResponse? Response, string? Error, int? RetryAfter);
+
+    private readonly TabResult?[] _results = new TabResult?[6];
+    private int _tab;
+    private string _scope = All;
+    private string? _question;
+    private string _mode = "bfs";
+    private int _depth = 3;
+    private int _budget = 2000;
+    private bool _demoteDocs = true;
+    private IReadOnlyCollection<string>? _contexts;
+    private string? _node;
+    private string? _neighbor;
+    private string? _relation;
+    private int _neighborBudget = 2000;
+    private string? _source;
+    private string? _target;
+    private int _maxHops = 8;
+    private bool _undirected;
+    private int _topN = 10;
+    private double? _percentile;
+    private PrItem? _pr;
+    private bool _busy;
+    private bool _copied;
+
+    private bool Open => State.Panel == ResearchPanelKind.Research;
+    private TabResult? Current => _results[_tab];
+
+    protected override void OnInitialized()
+    {
+        State.Changed += OnChanged;
+        State.TabRequested += OnTabRequested;
+    }
+
+    private void OpenChanged(bool open)
+    {
+        if (!open && Open) State.Open(ResearchPanelKind.None);
+    }
+
+    private static Task<IEnumerable<string>> RelationsAsync(string? text, CancellationToken _) =>
+        Task.FromResult(Relations.Where(r => string.IsNullOrWhiteSpace(text) || r.Contains(text.Trim(), StringComparison.OrdinalIgnoreCase)));
+
+    private bool CanRun => Tabs[_tab] switch
+    {
+        "query" => !string.IsNullOrWhiteSpace(_question),
+        "node" => !string.IsNullOrWhiteSpace(_node),
+        "neighbors" => !string.IsNullOrWhiteSpace(_neighbor),
+        "path" => !string.IsNullOrWhiteSpace(_source) && !string.IsNullOrWhiteSpace(_target),
+        "hubs" => true,
+        _ => _pr is not null,
+    };
+
+    /// <summary>The tool and arguments the current tab would send; defaults are left out, as the MCP tools default them.</summary>
+    private (string Tool, Dictionary<string, object?> Args) Request()
+    {
+        var args = new Dictionary<string, object?>();
+        string tool;
+        switch (Tabs[_tab])
+        {
+            case "query":
+                tool = "query_graph";
+                args["question"] = _question?.Trim();
+                if (_mode != "bfs") args["mode"] = _mode;
+                args["depth"] = _depth;
+                args["token_budget"] = _budget;
+                if (_contexts is { Count: > 0 } c) args["context_filter"] = c.Take(8).ToArray();
+                if (!_demoteDocs) args["demote_docs"] = false;
+                break;
+            case "node":
+                tool = "get_node";
+                args["label"] = _node?.Trim();
+                break;
+            case "neighbors":
+                tool = "get_neighbors";
+                args["label"] = _neighbor?.Trim();
+                if (!string.IsNullOrWhiteSpace(_relation)) args["relation_filter"] = _relation.Trim();
+                args["token_budget"] = _neighborBudget;
+                break;
+            case "path":
+                tool = "shortest_path";
+                args["source"] = _source?.Trim();
+                args["target"] = _target?.Trim();
+                args["max_hops"] = _maxHops;
+                if (_undirected) args["undirected"] = true;
+                break;
+            case "hubs":
+                tool = "god_nodes";
+                args["top_n"] = _topN;
+                if (_percentile is { } p) args["exclude_hubs_percentile"] = p;
+                break;
+            default:
+                tool = "get_pr_impact";
+                args["repo"] = _pr?.Repo;
+                args["pr_number"] = _pr?.Number;
+                return (tool, args);
+        }
+        if (_scope != All) args["project_path"] = _scope;
+        return (tool, args);
+    }
+
+    private async Task EnterAsync(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && CanRun && !_busy) await RunAsync();
+    }
+
+    private async Task RunAsync()
+    {
+        if (!CanRun) return;
+        var tab = _tab;
+        var (tool, args) = Request();
+        _busy = true;
+        StateHasChanged();
+        var outcome = await State.Client.CallAsync(tool, args);
+        _busy = false;
+        _results[tab] = new TabResult(outcome.Value, outcome.Error, outcome.RetryAfter);
+        StateHasChanged();
+    }
+
+    private Task ShowAsync()
+    {
+        if (Current?.Response is not { Rooms: { Count: > 0 } rooms } response) return Task.CompletedTask;
+        var label = Tabs[_tab] == PrImpactTab && _pr is { } pr ? $"PR #{pr.Number}" : $"{TabTitle(_tab)} result";
+        return State.ShowOnMapAsync(label, rooms);
+    }
+
+    private static string TabTitle(int i) => i switch { 0 => "Query", 1 => "Node", 2 => "Neighbors", 3 => "Path", 4 => "Hubs", _ => "PR impact" };
+
+    private async Task CopyAsync()
+    {
+        var text = Current?.Response?.Mcp is { ValueKind: not System.Text.Json.JsonValueKind.Undefined } mcp && !CanRunChanged()
+            ? McpCall.Format(mcp)
+            : McpCall.Build(Request().Tool, Request().Args);
+        try
+        {
+            await JS.InvokeVoidAsync("navigator.clipboard.writeText", text);
+            _copied = true;
+            StateHasChanged();
+            await Task.Delay(2000);
+            _copied = false;
+        }
+        catch (JSException)
+        {
+            _copied = false;
+        }
+    }
+
+    /// <summary>True when the form no longer matches the shown result, so the copy should follow the form.</summary>
+    private bool CanRunChanged()
+    {
+        if (Current?.Response?.Mcp is not { } mcp) return true;
+        using var form = System.Text.Json.JsonDocument.Parse(McpCall.Build(Request().Tool, Request().Args));
+        var formParams = form.RootElement.GetProperty("params");
+        return !(mcp.TryGetProperty("params", out var shown)
+                 && shown.TryGetProperty("name", out var name) && name.GetString() == formParams.GetProperty("name").GetString()
+                 && shown.TryGetProperty("arguments", out var args) && SameObject(args, formParams.GetProperty("arguments")));
+    }
+
+    /// <summary>Two JSON objects with the same properties and values, in any order.</summary>
+    private static bool SameObject(System.Text.Json.JsonElement a, System.Text.Json.JsonElement b)
+    {
+        if (a.ValueKind != System.Text.Json.JsonValueKind.Object || b.ValueKind != System.Text.Json.JsonValueKind.Object) return false;
+        var left = a.EnumerateObject().ToDictionary(p => p.Name, p => p.Value.GetRawText());
+        var right = b.EnumerateObject().ToDictionary(p => p.Name, p => p.Value.GetRawText());
+        return left.Count == right.Count && left.All(kv => right.TryGetValue(kv.Key, out var v) && v == kv.Value);
+    }
+
+    private void OnTabRequested(string tab, PrItem? pr)
+    {
+        var i = Array.IndexOf(Tabs, tab);
+        if (i < 0) return;
+        _ = InvokeAsync(async () =>
+        {
+            _tab = i;
+            if (pr is not null)
+            {
+                _pr = pr;
+                StateHasChanged();
+                await RunAsync();
+            }
+            StateHasChanged();
+        });
+    }
+
+    private void OnChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        State.Changed -= OnChanged;
+        State.TabRequested -= OnTabRequested;
+    }
+}

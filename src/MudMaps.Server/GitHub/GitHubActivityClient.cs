@@ -31,6 +31,75 @@ public sealed class GitHubActivityClient(HttpClient http, ILogger<GitHubActivity
 
     private const int MaxPages = 12;
 
+    // One request per repository per PR refresh: the 50 most recently updated open PRs with what the PR tools show.
+    private const string OpenPrQuery = """
+        query($owner: String!, $name: String!, $first: Int!, $files: Int!) {
+          repository(owner: $owner, name: $name) {
+            defaultBranchRef { name }
+            pullRequests(states: OPEN, first: $first, orderBy: {field: UPDATED_AT, direction: DESC}) {
+              nodes {
+                number title headRefName baseRefName isDraft reviewDecision updatedAt mergeable
+                author { __typename login }
+                labels(first: 10) { nodes { name } }
+                files(first: $files) { nodes { path } }
+                commits(last: 1) { nodes { commit { statusCheckRollup { state } } } }
+              }
+            }
+          }
+        }
+        """;
+
+    /// <summary>GitHub's <c>X-RateLimit-Remaining</c> from the last response, or null before the first.</summary>
+    public int? RateLimitRemaining { get; private set; }
+
+    /// <summary>GitHub's <c>X-RateLimit-Used</c> from the last response.</summary>
+    public int? RateLimitUsed { get; private set; }
+
+    private void ReadRateLimit(HttpResponseMessage response)
+    {
+        static int? Header(HttpResponseMessage r, string name) =>
+            r.Headers.TryGetValues(name, out var v) && int.TryParse(v.FirstOrDefault(), out var n) ? n : null;
+        RateLimitRemaining = Header(response, "X-RateLimit-Remaining") ?? RateLimitRemaining;
+        RateLimitUsed = Header(response, "X-RateLimit-Used") ?? RateLimitUsed;
+    }
+
+    /// <summary>
+    /// The repository's open pull requests (newest update first, at most 50) and its default branch. GitHub answers
+    /// this heavy query with a 5xx now and then (MudBlazor's 50 PRs with their files); one retry asks for a lighter
+    /// page (25 PRs, 50 files each) so a cold start still gets that repository's PRs this cycle.
+    /// </summary>
+    public async Task<RepoOpenPrs> GetOpenPullRequestsAsync(string fullName, string token, DateTimeOffset now, CancellationToken ct)
+    {
+        try
+        {
+            return await FetchOpenPullRequestsAsync(fullName, token, now, 50, 100, ct);
+        }
+        catch (HttpRequestException e) when ((int?)e.StatusCode >= 500)
+        {
+            log.LogInformation("GitHub open PRs for {Repo}: {Status}, retrying with a lighter page", fullName, (int?)e.StatusCode);
+            return await FetchOpenPullRequestsAsync(fullName, token, now, 25, 50, ct);
+        }
+    }
+
+    private async Task<RepoOpenPrs> FetchOpenPullRequestsAsync(string fullName, string token, DateTimeOffset now, int first, int files, CancellationToken ct)
+    {
+        var (owner, name) = Split(fullName);
+        using var request = new HttpRequestMessage(HttpMethod.Post, "graphql")
+        {
+            Content = JsonContent.Create(new { query = OpenPrQuery, variables = new { owner, name, first, files } }),
+        };
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        using var response = await http.SendAsync(request, ct);
+        ReadRateLimit(response);
+        response.EnsureSuccessStatusCode();
+        using var doc = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(ct), cancellationToken: ct);
+        if (doc.RootElement.TryGetProperty("errors", out var errors))
+        {
+            throw new InvalidOperationException($"GitHub GraphQL error for {fullName}: {errors[0].GetProperty("message").GetString()}");
+        }
+        return OpenPrParser.Parse(fullName, doc.RootElement.GetProperty("data").GetProperty("repository"), now);
+    }
+
     /// <summary>When GitHub says the token expires, from the last response; null if it never expires or is unknown.</summary>
     public DateTimeOffset? TokenExpiresAt { get; private set; }
 
@@ -59,6 +128,7 @@ public sealed class GitHubActivityClient(HttpClient http, ILogger<GitHubActivity
             };
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
             using var response = await http.SendAsync(request, ct);
+            ReadRateLimit(response);
             response.EnsureSuccessStatusCode();
             if (response.Headers.TryGetValues("github-authentication-token-expiration", out var expiry))
             {

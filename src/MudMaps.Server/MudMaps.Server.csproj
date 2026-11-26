@@ -4,6 +4,16 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
+
+  <ItemGroup>
+    <Content Remove="Research/graphify-tools.json" />
+    <EmbeddedResource Include="Research/graphify-tools.json" LogicalName="MudMaps.Server.Research.graphify-tools.json" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="MudMaps.Server.Tests" />
+  </ItemGroup>
 
 </Project>

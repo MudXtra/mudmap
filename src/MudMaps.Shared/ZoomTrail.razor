@@ -1,5 +1,7 @@
-@* Breadcrumb for the zoom levels: Whole map › Area › Room. *@
-<MudStack Row AlignItems="AlignItems.Center" Spacing="1" Class="mm-trail" role="navigation" aria-label="Zoom level">
+@implements IDisposable
+@inject MapScope Scope
+@* Breadcrumb for the zoom levels: Whole map › Area › Room. It also tells the figures which repo is zoomed. *@
+<MudStack Row AlignItems="AlignItems.Center" Spacing="1" Wrap="Wrap.Wrap" Class="mm-trail" role="navigation" aria-label="Zoom level">
     @for (var i = 0; i < Steps.Count; i++)
     {
         var step = Steps[i];
@@ -16,7 +18,24 @@
 </MudStack>
 
 @code {
-    public sealed record Step(string Label, EventCallback OnClick);
+    /// <param name="Repo">The repository this step is inside, so the figures can follow the zoom.</param>
+    public sealed record Step(string Label, EventCallback OnClick, string? Repo = null);
 
     [Parameter, EditorRequired] public IReadOnlyList<Step> Steps { get; set; } = [];
+
+    protected override void OnParametersSet() => Scope.SetTrail(RepoOf(Steps));
+
+    /// <summary>The innermost step's repository. Steps without one fall back to their "Repo › Area" label.</summary>
+    private static string? RepoOf(IReadOnlyList<Step> steps)
+    {
+        for (var i = steps.Count - 1; i > 0; i--)
+        {
+            if (steps[i].Repo is { } repo) return repo;
+            var cut = steps[i].Label.IndexOf(" › ", StringComparison.Ordinal);
+            if (cut > 0) return steps[i].Label[..cut];
+        }
+        return null;
+    }
+
+    public void Dispose() => Scope.SetTrail(null);
 }

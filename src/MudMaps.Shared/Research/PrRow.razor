@@ -1,0 +1,48 @@
+@* One open pull request as a compact row: number and title, then CI, review, repo, author and age, then labels with the
+   rooms it touches and its blast radius. Every value is server text, so it is rendered encoded. *@
+<MudStack Spacing="0" Class="mm-pr-row mm-min0">
+    <MudText Typo="Typo.body2" Class="mm-pr-title"><span class="mm-pr-num">#@Pr.Number</span> @Pr.Title</MudText>
+    <MudText Typo="Typo.caption" Class="mm-pr-meta">
+        <MudIcon Icon="@Icons.Material.Filled.Circle" Class="@($"mm-ci mm-ci-{Pr.Ci.ToLowerInvariant()}")" Size="Size.Small" aria-hidden="true" />
+        CI @CiText(Pr.Ci) · @ReviewText(Pr.Review) · @RepoName · @@@Pr.Author · @Age(Pr.AgeDays)
+    </MudText>
+    @if (ShowLabels)
+    {
+        <MudStack Row Spacing="1" Wrap="Wrap.Wrap" AlignItems="AlignItems.Center" Class="mm-pr-tags">
+            @foreach (var label in Pr.LabelList)
+            {
+                <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Class="mm-pr-label" Text="@label" />
+            }
+            <MudText Typo="Typo.caption" Class="mm-pr-blast">@Rooms(Pr.RoomList.Count) · blast @Pr.BlastRadius</MudText>
+        </MudStack>
+    }
+</MudStack>
+
+@code {
+    [Parameter, EditorRequired] public PrItem Pr { get; set; } = default!;
+    /// <summary>The repository's display name; the full name when unknown.</summary>
+    [Parameter] public string? RepoDisplay { get; set; }
+    [Parameter] public bool ShowLabels { get; set; } = true;
+
+    private string RepoName => RepoDisplay ?? Pr.Repo;
+
+    public static string CiText(string ci) => ci switch
+    {
+        "SUCCESS" => "passing",
+        "FAILURE" => "failing",
+        "PENDING" => "pending",
+        _ => "none",
+    };
+
+    public static string ReviewText(string review) => review switch
+    {
+        "APPROVED" => "approved",
+        "CHANGES_REQUESTED" => "changes requested",
+        "REVIEW_REQUIRED" => "review required",
+        _ => "no review",
+    };
+
+    public static string Age(double days) => days < 1 ? "today" : $"{Math.Floor(days):0}d";
+
+    public static string Rooms(int n) => n == 1 ? "1 room" : $"{n} rooms";
+}

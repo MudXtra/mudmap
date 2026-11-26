@@ -6,11 +6,119 @@
 }
 html { scrollbar-color: var(--paper-3) var(--paper); }
 .mm-loading { color: var(--muted); padding: 48px; font-family: Geist, sans-serif; }
-.mm-stage { background: var(--paper-2); border: 1px solid #2b2320; }
+.mm-stage { background: #0f2633; border: 1px solid #2b2320; }
 .mm-fig-value { color: var(--ink); }
 .mm-figs { gap: 32px; }
-.mm-ramp { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 14px; font-weight: 500; }
-.mm-ramp i { display: block; width: 24px; height: 10px; }
-svg text { font-family: Geist, ui-sans-serif, sans-serif; }
-svg .lab, svg .area { transition: opacity 300ms ease-out; }
-@media (prefers-reduced-motion: reduce) { svg .lab, svg .area { transition: none; } }
+.mm-ramp { color: var(--muted); font-weight: 500; }
+.mm-ramp .mud-typography { color: var(--muted); font-size: 14px; font-weight: 500; }
+.mm-swatch { display: block; width: 24px; height: 10px; }
+svg text { font-family: Geist, ui-sans-serif, sans-serif; text-rendering: geometricPrecision; }
+
+/* The world: muted terrain under a dusk light, so banners, borders and the heat read first. */
+svg .terrain path { stroke: rgb(0 0 0 / .28); stroke-width: .7; }
+svg .g-ocean { fill: #10303f; stroke: none !important; }
+svg .g-coast { fill: #1b4a5a; }
+svg .g-grass { fill: #34502e; }
+svg .g-plains { fill: #5b5732; }
+svg .g-forest { fill: #2a4328; }
+svg .g-hills { fill: #57493a; }
+svg .terrain .trees { fill: #1b3020; stroke: none; }
+svg .terrain .hillmarks { fill: none; stroke: #2e261e; stroke-width: 2; stroke-linecap: round; }
+svg .terrain .waves { fill: none; stroke: #4c7f91; stroke-width: 1.2; stroke-linecap: round; opacity: .55; }
+svg .terrain .river { fill: none; stroke: #3d86a3; stroke-width: 3.2; stroke-linecap: round; stroke-linejoin: round; }
+
+/* Trade routes: a packed-earth bed with a lighter crown; traders travel them (city.js). */
+svg .road-bed { fill: none; stroke: #2a1d14; stroke-width: 5; stroke-linecap: round; opacity: .75; }
+svg .route { fill: none; stroke: #b08b5e; stroke-width: 1.6; stroke-dasharray: 5 4; stroke-linecap: round; opacity: .9; }
+#roads, #traffic { transition: opacity 600ms ease; }
+#roads.dim, #traffic.dim { opacity: .35; }
+
+/* Cities: a tinted territory with its border in the city's colour, walls, houses, farms and mines. */
+svg .terr { fill-opacity: .1; transition: fill-opacity 200ms ease; }
+svg .border { fill: none; stroke-width: 3; stroke-linecap: round; opacity: .9; transition: stroke-width 200ms ease, opacity 200ms ease; }
+svg .pad { fill: #3b3128; stroke: #1c1612; stroke-width: .8; }
+svg .farm { stroke: rgb(0 0 0 / .3); stroke-width: .6; opacity: .85; }
+svg .mine polygon { fill: #4b4136; stroke: rgb(0 0 0 / .3); stroke-width: .6; }
+svg .mine path { fill: #2b241d; }
+svg .walls { fill: #2b231e; stroke: #8f8070; stroke-width: 2.2; stroke-dasharray: 3.5 1.6; }
+svg .civ-glow { opacity: .55; }
+svg .civ-glow stop { stop-color: currentColor; }
+svg .smoke circle { fill: #d9cbbb; opacity: 0; animation: civ-smoke 4.4s ease-out infinite; transform-box: fill-box; transform-origin: center; }
+@keyframes civ-smoke { 0% { opacity: 0; transform: translate(0, 0) scale(.6); } 20% { opacity: .5; } 100% { opacity: 0; transform: translate(4px, -16px) scale(1.8); } }
+svg .civ-glow { animation: civ-pulse 3.6s ease-in-out infinite alternate; }
+@keyframes civ-pulse { from { opacity: .35; } to { opacity: .7; } }
+
+/* The banner on the world map: the city never grows on hover (it stands for everything inside it); its border and
+   banner light up instead. Districts and rooms, the real places, pop out (mm-pop). */
+svg .banner-plate { fill: #120c0a; fill-opacity: .92; stroke-width: 2; }
+svg .banner-name { paint-order: stroke; stroke: #120c0a; stroke-width: 3px; stroke-linejoin: round; }
+svg .civ-city.mm-hot:hover .border, svg .civ-city.mm-hot:focus-visible .border { stroke-width: 5; opacity: 1; }
+svg .civ-city.mm-hot:hover .terr, svg .civ-city.mm-hot:focus-visible .terr { fill-opacity: .24; }
+svg .civ-city.mm-hot:hover .banner-plate, svg .civ-city.mm-hot:focus-visible .banner-plate { fill: #2a1d16; stroke-width: 3; }
+svg .civ-city.mm-hot:focus-visible { outline: none; }
+svg .civ-city, svg .civ-district, svg .civ-centre, svg .lab { transition: opacity 400ms ease-out; }
+svg .civ-city.off { opacity: .32; }
+svg .civ-district.off, svg .civ-centre.off { opacity: .3; }
+svg .civ-city.here .terr { fill-opacity: .16; }
+/* While travelling into a city the rest of the world dims towards it. */
+.mm-stage.travelling.inbound svg .civ-city:not(.ride-target):not(.here) { opacity: .45; transition: opacity 1600ms ease; }
+
+/* District names arrive with the city. */
+svg .civ-names { animation: civ-rise 500ms ease both; }
+
+/* Inside a district its rooms open out of the tile. */
+svg .room-panel { fill: #150e0b; fill-opacity: .94; }
+svg .civ-rooms { transform-box: view-box; animation: civ-open 520ms cubic-bezier(.2, .8, .2, 1) both; }
+@keyframes civ-open { from { transform: scale(.18); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+/* Lit windows flicker on hot districts. */
+svg .mm-win { animation: mm-win-flicker 5s ease-in-out infinite; }
+@keyframes mm-win-flicker { 0%, 100% { opacity: 1; } 40% { opacity: .3; } 52% { opacity: 1; } 73% { opacity: .45; } }
+
+/* Open land: from a district or a city it travels back up a level. */
+svg .ground.out { cursor: zoom-out; }
+
+/* The journey: a caravan token, its path and the arrival banner (city.js). */
+svg .ride-path { fill: none; stroke: #f6e7c8; stroke-width: 2.5; stroke-dasharray: 2 7; stroke-linecap: round; }
+svg .ride-step { fill: #f6e7c8; }
+.civ-arrival { position: absolute; left: 50%; top: 18px; z-index: 4; pointer-events: none; transform: translateX(-50%);
+  min-width: min(340px, 86%); max-width: 86%; padding: 10px 28px 12px; text-align: center; color: #fff8ec;
+  background: linear-gradient(#1d130e, #120b08); border: 2px solid var(--civ-colour, #e9b949); border-radius: 6px;
+  box-shadow: 0 10px 30px rgb(0 0 0 / .6); clip-path: inset(0 50% 0 50%); opacity: 0; }
+.civ-arrival::before, .civ-arrival::after { content: ""; position: absolute; top: 8px; bottom: -10px; width: 18px; background: var(--civ-colour, #e9b949);
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 80%, 0 100%); z-index: -1; }
+.civ-arrival::before { left: 10px; }
+.civ-arrival::after { right: 10px; }
+.civ-arrival .k { font-size: .875rem; font-weight: 500; color: #ece0cc; }
+.civ-arrival .n { font-family: Boska, Georgia, serif; font-size: 1.75rem; font-weight: 500; line-height: 1.15; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.civ-arrival .s { font-size: .875rem; color: #ece0cc; font-variant-numeric: tabular-nums; }
+.mm-stage.travelling svg .mm-win { animation-play-state: paused; }
+.mm-stage.travelling svg { pointer-events: none; }
+/* Heading back out, the banners rise in once the camera has pulled back far enough to read them. */
+.mm-stage.travelling.outbound svg .banner { animation: civ-rise 900ms ease 1700ms both; }
+@keyframes civ-rise { from { opacity: 0; } to { opacity: 1; } }
+/* The destination's own banner gives way to the arrival banner as the camera closes in. */
+.mm-stage.travelling svg .civ-city.ride-target .banner { opacity: 0; transition: opacity 900ms ease 1300ms; }
+
+/* The map sits in a pan box: full width on desktop; on a phone it keeps a readable width and pans sideways. */
+.city-pan { overflow: hidden; }
+.city-hint { display: none; margin: 8px 0 0; color: var(--ink-2); font-size: .875rem; }
+.city-pan > svg { display: block; width: 100%; height: auto; }
+/* Hover tooltip for cities, districts and rooms, drawn like a MudBlazor tooltip. */
+.mm-tip { position: absolute; left: 0; top: 0; z-index: 5; pointer-events: none; max-width: min(300px, 80%); padding: 6px 10px;
+  border-radius: var(--mud-default-borderradius, 4px); background: var(--mud-palette-grey-darker, #424242); color: var(--mud-palette-white, #fff);
+  box-shadow: 0 2px 8px rgb(0 0 0 / .5); font-size: .875rem; line-height: 1.4; overflow-wrap: anywhere; }
+.mm-tip[hidden] { display: none; }
+.mm-tip-title { font-weight: 600; }
+.mm-tip-sub { color: #e6e6e6; font-size: .8125rem; }
+@media (max-width: 640px) {
+  .city-pan { overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; scrollbar-width: thin; }
+  .city-pan > svg { min-width: 960px; }
+  .city-hint { display: block; }
+  .civ-arrival .n { font-size: 1.375rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  svg .civ-city, svg .civ-district, svg .civ-centre, svg .lab, #roads, svg .terr, svg .border { transition: none; }
+  svg .mm-win, svg .smoke circle, svg .civ-glow, svg .civ-rooms, svg .civ-names, .mm-stage.travelling.outbound svg .banner { animation: none; }
+  svg .smoke { display: none; }
+}

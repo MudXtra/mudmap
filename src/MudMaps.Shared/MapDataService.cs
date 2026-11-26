@@ -9,6 +9,9 @@ namespace MudMaps.Shared;
 /// Loads the map data. Prefers the live service (api/map beside the app) when the app is hosted by MudMaps.Server,
 /// and falls back to the snapshot file baked into the app when it is not.
 /// </summary>
+/// <summary>The service's <c>api/status</c>: when the data was last confirmed current, and when the map body was built.</summary>
+public sealed record ServiceStatus(DateTimeOffset? CheckedAt, string? MapGeneratedAt, bool PrsLive);
+
 public sealed class MapDataService(HttpClient http) : IAsyncDisposable
 {
     private static readonly JsonSerializerOptions Options = new(JsonSerializerDefaults.Web);
@@ -17,6 +20,9 @@ public sealed class MapDataService(HttpClient http) : IAsyncDisposable
 
     /// <summary>True when the last load came from the live service.</summary>
     public bool IsLive { get; private set; }
+
+    /// <summary>The map from the last <see cref="LoadLiveAsync"/>, test code included.</summary>
+    public MapData? Current { get; private set; }
 
     /// <param name="file">"mud.json" (two repos) or "mud-v2.json" (every mapped repo, PRs per room).</param>
     public Task<MapData> LoadAsync(string file = "mud.json")
@@ -41,7 +47,7 @@ public sealed class MapDataService(HttpClient http) : IAsyncDisposable
                 && await response.Content.ReadFromJsonAsync<MapData>(Options) is { } live)
             {
                 IsLive = true;
-                return live;
+                return Current = live;
             }
         }
         catch (HttpRequestException)
@@ -52,7 +58,29 @@ public sealed class MapDataService(HttpClient http) : IAsyncDisposable
         {
         }
         IsLive = false;
-        return await LoadAsync(fallbackFile);
+        return Current = await LoadAsync(fallbackFile);
+    }
+
+    /// <summary>
+    /// When the service last confirmed the data current (<c>api/status</c>), or null when there is no service or it does not answer.
+    /// Moves without the map changing, so it is fetched on its own.
+    /// </summary>
+    public async Task<ServiceStatus?> LoadStatusAsync()
+    {
+        if (!IsLive) return null;
+        try
+        {
+            using var response = await http.GetAsync(ServiceUri("api/status"));
+            if (response.StatusCode == HttpStatusCode.OK && response.Content.Headers.ContentType?.MediaType == "application/json")
+            {
+                return await response.Content.ReadFromJsonAsync<ServiceStatus>(Options);
+            }
+        }
+        catch (Exception ex) when (ex is HttpRequestException or JsonException or TaskCanceledException)
+        {
+            // The footer falls back to the map's own stamp.
+        }
+        return null;
     }
 
     /// <summary>Call <paramref name="onUpdate"/> whenever the service publishes a new map. No-op without the service.</summary>

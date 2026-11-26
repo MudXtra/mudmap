@@ -19,6 +19,7 @@ public sealed class MapRefreshService(
 {
     private readonly Dictionary<string, (DateTime Stamp, RepoGraph Graph)> _graphs = [];
     private readonly Dictionary<string, RepoActivity> _activity = [];
+    private readonly Dictionary<string, RepoOpenPrs> _openPrs = [];
     private DateTimeOffset _nextPrRefresh = DateTimeOffset.MinValue;
     private bool _prsLive;
 
@@ -69,6 +70,7 @@ public sealed class MapRefreshService(
             log.LogInformation("Loaded graph for {Repo}: {Nodes} items, {Rooms} rooms", repo.FullName, graph.Nodes, graph.Rooms.Count);
             changed = true;
         }
+        if (changed) state.Graphs = _graphs.ToDictionary(kv => kv.Key, kv => kv.Value.Graph);
         return changed;
     }
 
@@ -79,10 +81,12 @@ public sealed class MapRefreshService(
         {
             if (_prsLive) log.LogWarning("GitHub token unavailable; pull request activity is no longer live");
             _prsLive = false;
+            state.ActivityRefreshedAt = null;
             return false;
         }
         var since = clock.GetUtcNow().AddDays(-opts.WindowDays);
         var changed = false;
+        var allFetched = true;
         foreach (var repo in opts.Repos)
         {
             try
@@ -94,9 +98,29 @@ public sealed class MapRefreshService(
             catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException or TaskCanceledException && !ct.IsCancellationRequested)
             {
                 log.LogWarning("GitHub activity for {Repo} failed: {Message}", repo.FullName, ex.Message);
+                allFetched = false;
             }
         }
+        // Open PRs for the research PR tools: one more request per repository, so a cycle is the activity pages
+        // (at least one per repository: 15+ for the 15 repos) plus 15, plus one lighter retry for any repository GitHub
+        // answers with a 5xx. The tools read this snapshot and never fetch.
+        foreach (var repo in opts.Repos)
+        {
+            try
+            {
+                _openPrs[repo.FullName] = await github.GetOpenPullRequestsAsync(repo.FullName, token, clock.GetUtcNow(), ct);
+            }
+            catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException or KeyNotFoundException or TaskCanceledException && !ct.IsCancellationRequested)
+            {
+                // Keep the previous list for this repository; the tools say how old it is.
+                log.LogWarning("GitHub open PRs for {Repo} failed: {Message}", repo.FullName, ex.Message);
+            }
+        }
+        state.OpenPrs = new OpenPrSnapshot(clock.GetUtcNow(), new Dictionary<string, RepoOpenPrs>(_openPrs));
+        log.LogInformation("github ratelimit remaining={Remaining} used={Used}", github.RateLimitRemaining, github.RateLimitUsed);
         _prsLive = true;
+        // Only a pass that reached every repo counts as "checked"; the footer's data age rests on it.
+        if (allFetched) state.ActivityRefreshedAt = clock.GetUtcNow();
         state.TokenExpiresAt = github.TokenExpiresAt;
         if (state.TokenExpiringSoon(clock.GetUtcNow()))
         {
@@ -136,7 +160,7 @@ public sealed class MapRefreshService(
     private static string GraphPath(MapsOptions opts, string fullName) =>
         Path.Combine(opts.ReposRoot, fullName, "graphify-out", "graph.json");
 
-    private static string? ReadToken(MapsOptions opts)
+    internal static string? ReadToken(MapsOptions opts)
     {
         var file = opts.GitHubTokenFile;
         if (string.IsNullOrWhiteSpace(file))

@@ -9,5 +9,6 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/MudMaps.Server.Tests/MudMaps.Server.Tests.csproj" />
+    <Project Path="tests/MudMaps.Shared.Tests/MudMaps.Shared.Tests.csproj" />
   </Folder>
 </Solution>

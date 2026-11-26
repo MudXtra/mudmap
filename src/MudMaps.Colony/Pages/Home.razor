@@ -15,8 +15,10 @@
     else
     {
         <MapHero Title="The Mud colony is busy."
-                 Lede="Nine repos, one ant farm. Ants walk where this month’s pull requests went."
-                 Figures="_figures" />
+                 Lede="Every Mud repo, one ant farm. Ants walk where this month’s pull requests went."
+                 Figures="_figures">
+            <Nav><MapNav Current="colony" /></Nav>
+        </MapHero>
 
         <ZoomTrail Steps="_trail" />
 
@@ -28,67 +30,85 @@
                         <circle cx="5.5" cy="6" r=".6" fill="var(--paper-3)" />
                     </pattern>
                 </defs>
-                <rect x="-600" y="-600" width="2800" height="@(600 + Surface)" fill="var(--sky)" />
-                <rect x="-600" y="@Surface" width="2800" height="1800" fill="var(--soil)" />
-                <rect x="-600" y="@Surface" width="2800" height="1800" fill="url(#grain)" opacity=".7" />
-                <path d="@_grassPath" fill="var(--grass)" />
+                <g style="@(_hood is null ? "" : "cursor:zoom-out")" @onclick="BackgroundAsync">
+                    <rect x="-600" y="-600" width="2800" height="@(600 + Surface)" fill="var(--sky)" />
+                    <rect x="-600" y="@Surface" width="2800" height="1800" fill="var(--soil)" />
+                    <rect x="-600" y="@Surface" width="2800" height="1800" fill="url(#grain)" opacity=".7" />
+                    <path class="grass" d="@_grassPath" fill="var(--grass)" />
+                </g>
 
                 @foreach (var t in _tunnels)
                 {
                     <path d="@t.Path" fill="none" stroke="var(--tunnel)" stroke-width="@F(t.Width)" stroke-linecap="round" />
-                    <path class="route" d="@t.Path" fill="none" stroke="none" data-heat="@t.Heat" />
+                    <path class="route" d="@t.Path" fill="none" stroke="none" data-heat="@t.Heat" data-a="@t.A" data-b="@t.B" />
                 }
 
                 @foreach (var n in _nests)
                 {
-                    <g class="mm-hot" tabindex="0" role="button" aria-label="@($"{n.Repo.Name}: {n.Repo.Prs} pull requests. Details.")"
-                       @onclick="() => OpenRepo(n.Repo)" @onkeydown="e => KeyAsync(e, () => { OpenRepo(n.Repo); return Task.CompletedTask; })">
+                    var big = IsBig(n.Repo);
+                    var up = n.Upper ? UpperRow : 0;
+                    var half = LabelWidth(n.Repo) / 2 + 6;
+                    <g class="mm-hot mm-pop nest" tabindex="0" role="button" data-x="@F(n.EntranceX)" data-upper="@(n.Upper ? 1 : 0)" data-big="@(big ? 1 : 0)" data-prs="@n.Repo.Prs" aria-label="@($"{n.Repo.Name}: {n.Repo.Prs} pull requests. Fly in.")"
+                       data-tip="@n.Repo.Name" data-sub="@(n.Repo.Prs > 0 ? $"{n.Repo.Prs} pull requests this month" : "quiet this month")"
+                       @onclick="() => OpenNestAsync(n)" @onkeydown="e => KeyAsync(e, () => OpenNestAsync(n))">
                         <path d="@n.Mound" fill="var(--soil-2)" />
                         <ellipse cx="@F(n.EntranceX)" cy="@F(Surface - 3)" rx="7" ry="3" fill="var(--tunnel)" />
-                        <rect x="@F(n.EntranceX - 80)" y="@F(Surface - 62)" width="160" height="60" fill="transparent" />
-                        <text class="lab" style="@LabelStyle" x="@F(n.EntranceX)" y="@F(Surface - 40)" text-anchor="middle"
-                              font-family="Young Serif, serif" font-size="@(n.Repo.Nodes > 10000 ? "26" : "17")"
-                              fill="@(n.Repo.Prs > 0 ? "var(--ink)" : "var(--muted)")">@n.Repo.Name</text>
-                        <text class="lab" style="@LabelStyle" x="@F(n.EntranceX)" y="@F(Surface - 22)" text-anchor="middle" font-size="12"
-                              fill="@(n.Repo.Prs > 0 ? "var(--accent)" : "var(--muted)")">@(n.Repo.Prs > 0 ? $"{n.Repo.Prs} pull requests" : "quiet this month")</text>
+                        @* Hit areas: the label in its own row and the mound, so neighbouring nests never cover each other. *@
+                        <rect class="nhit" x="@F(n.EntranceX - half)" y="@F(Surface - (big ? 80 : 72) - up)" width="@F(half * 2)" height="@(big ? 62 : 54)" fill="transparent" />
+                        <rect x="@F(n.EntranceX - 36)" y="@F(Surface - 22)" width="72" height="26" fill="transparent" />
+                        @if (up > 0)
+                        {
+                            <line class="lab ntick" style="@LabelStyle" x1="@F(n.EntranceX)" y1="@F(Surface - 18)" x2="@F(n.EntranceX)" y2="@F(Surface - 16 - up)" stroke="var(--ink-2)" stroke-opacity=".45" stroke-width="1.2" stroke-dasharray="2 3" />
+                        }
+                        <text class="lab nlab" style="@LabelStyle" x="@F(n.EntranceX)" y="@F(Surface - (big ? 44 : 40) - up)" text-anchor="middle"
+                              font-family="Young Serif, serif" font-size="@F(big ? BigNameSize : NameSize)"
+                              fill="@(n.Repo.Prs > 0 ? "var(--ink)" : "var(--ink-2)")">@Fit.Cut(n.Repo.Name, big ? BigNestLabelMax : NestLabelMax)</text>
+                        <text class="lab nlab" style="@LabelStyle" x="@F(n.EntranceX)" y="@F(Surface - 21 - up)" text-anchor="middle" font-size="@F(CountSize)" font-weight="600"
+                              fill="@(n.Repo.Prs > 0 ? "var(--accent)" : "var(--ink-2)")">@(n.Repo.Prs > 0 ? $"{n.Repo.Prs} PRs" : "quiet")</text>
                     </g>
                 }
 
                 @foreach (var c in _chambers)
                 {
                     var current = _hood?.Key == c.Hood.Key;
-                    <g class="chamber mm-hot" style="@(_hood is null || current ? "opacity:1" : "opacity:.35")" tabindex="0" role="button"
+                    <g class="chamber mm-hot mm-pop @(c.Hood.Prs > 0 ? "hot" : "")" style="@(_hood is null || current ? "opacity:1" : "opacity:.35")" tabindex="0" role="button"
+                       data-key="@c.Hood.Key" data-x="@F(c.X)" data-y="@F(c.Y)" data-rx="@F(c.Rx)" data-ry="@F(c.Ry)" data-prs="@c.Hood.Prs"
+                       data-tip="@($"{c.Hood.Repo} › {c.Hood.Label}")" data-sub="@(c.Hood.Prs > 0 ? $"{c.Hood.Prs} pull requests" : "quiet this month")"
                        aria-label="@($"{c.Hood.Label} in {c.Hood.Repo}, {c.Hood.Prs} pull requests. Dig in.")"
                        @onclick="() => OpenHoodAsync(c)" @onkeydown="e => KeyAsync(e, () => OpenHoodAsync(c))">
                         <ellipse cx="@F(c.X)" cy="@F(c.Y)" rx="@F(c.Rx)" ry="@F(c.Ry)" fill="var(--tunnel)"
                                  stroke="@(c.Hood.Prs > 0 ? "var(--accent)" : "var(--soil-2)")" stroke-width="@F(c.Hood.Prs > 0 ? 1.5 + Math.Min(3, c.Hood.Prs / 8.0) : 1.5)" />
-                        <text class="lab" style="@LabelStyle" x="@F(c.X)" y="@F(c.Y + c.Ry + 15)" text-anchor="middle" font-size="12" font-weight="600"
-                              fill="@(c.Hood.Prs > 0 ? "var(--ink)" : "var(--muted)")">@c.Hood.Label</text>
+                        <text class="lab clab" style="@LabelStyle" x="@F(c.X)" y="@F(c.Y + c.Ry + 15)" text-anchor="middle" font-size="12" font-weight="600"
+                              fill="@(c.Hood.Prs > 0 ? "var(--ink)" : "var(--ink-2)")">@Fit.Cut(c.Hood.Label, 18)</text>
                     </g>
                 }
 
                 @foreach (var room in _rooms)
                 {
-                    <g class="mm-hot" tabindex="0" role="button" aria-label="@($"{room.FullName}, {room.Cluster.N} code items, {room.Cluster.Prs} pull requests")"
+                    <g class="mm-hot mm-pop" tabindex="0" role="button" aria-label="@($"{room.FullName}, {room.Cluster.N} code items, {room.Cluster.Prs} pull requests")"
+                       data-tip="@room.FullName" data-sub="@($"{room.Cluster.N} code items{(room.Cluster.Prs > 0 ? $" · {room.Cluster.Prs} pull requests" : "")}")"
                        @onclick="() => OpenRoom(room)" @onkeydown="e => KeyAsync(e, () => { OpenRoom(room); return Task.CompletedTask; })">
                         <ellipse cx="@F(room.X)" cy="@F(room.Y)" rx="@F(room.R * 1.2)" ry="@F(room.R * .7)"
                                  fill="@(room.Cluster.Prs > 0 ? "var(--room-hot)" : "var(--paper-3)")"
                                  stroke="@(room.Cluster.Prs > 0 ? "var(--accent)" : "var(--soil-2)")" stroke-width="@(_room == room.Cluster ? ".9" : ".5")" />
-                        <text x="@F(room.X)" y="@F(room.Y + room.FontSize * .35)" text-anchor="middle" font-size="@F(room.FontSize)" font-weight="600" fill="var(--ink)">@room.Name</text>
-                        <title>@room.FullName</title>
+                        <text class="rname" data-full="@room.Name" x="@F(room.X)" y="@F(room.Y)" dominant-baseline="central" text-anchor="middle"
+                              data-w="@F(room.CellWidth * .94)" data-vw="@F(room.ViewWidth)" font-weight="600" fill="var(--ink)">@room.Name</text>
                     </g>
                 }
 
                 <g id="ants" pointer-events="none"></g>
+                <g id="rider" pointer-events="none" opacity="0"></g>
             </svg>
-            <RoomPanel Cluster="_room" OnClose="CloseRoom" />
-            <RepoPanel Repo="_repo" WindowDays="_data.WindowDays" OnClose="() => _repo = null" />
+            <div class="mm-tip" role="tooltip" aria-hidden="true"></div>
         </div>
+        <MapControls IncludeTests="_includeTests" IncludeTestsChanged="SetIncludeTestsAsync" Available="TestsKnown" TestItems="TestItems" />
+        <MapSheet Room="_room" Repo="_repo" RoomRepo="RepoOf(_room)" WindowDays="_data.WindowDays" OnClose="CloseDetails" />
 
-        <MudText Typo="Typo.body2" Class="mm-note mud-text-secondary">
+        <MudText Typo="Typo.body1" Class="mm-note" Style="color: var(--ink-2); max-width: 72ch">
             Each nest is a repo and each chamber is a part of its code, bigger where there is more. Tunnels are calls between them,
             including the long ones where the extension libraries reach into MudBlazor. Every ant is a pull request from the last
-            @_data.WindowDays days, and pink ones carry work that merged. Click a chamber to dig in, a room to see its code, a nest name for the repo.
+            @_data.WindowDays days, and pink ones carry work that merged. Click a chamber to dig in, a room to see its code, or a nest to fly
+            down into the repo.
         </MudText>
     }
 </div>

@@ -171,6 +171,16 @@ public sealed partial class RepoGraph
             }
         }
 
+        // graphify's compute_pr_impact index: every node with a source file counts, community or not.
+        var fileCommunities = new Dictionary<string, (SortedSet<int> Communities, int Count)>();
+        foreach (var n in nodes.Values)
+        {
+            if (n.File is null) continue;
+            if (!fileCommunities.TryGetValue(n.File, out var entry)) entry = (new SortedSet<int>(), 0);
+            if (n.Community is { } cid) entry.Communities.Add(cid);
+            fileCommunities[n.File] = (entry.Communities, entry.Count + 1);
+        }
+
         var typeIndex = new Dictionary<string, string>();
         if (indexMudTypes)
         {
@@ -201,8 +211,15 @@ public sealed partial class RepoGraph
             OtherTestSize = hasOther ? testSize.Where(kv => !keepSet.Contains(kv.Key)).Sum(kv => kv.Value) : 0,
             TestNodes = isTest.Count,
             LicenseFile = licenseFile,
+            FileCommunities = fileCommunities.ToDictionary(kv => kv.Key, kv => new FileImpact(kv.Value.Communities.ToArray(), kv.Value.Count)),
         };
     }
+
+    /// <summary>Per source file: the graph communities its nodes belong to and how many nodes it has.</summary>
+    public sealed record FileImpact(IReadOnlyList<int> Communities, int Nodes);
+
+    /// <summary>Every source file in the graph, for graphify's PR impact rule (prs.py compute_pr_impact).</summary>
+    public IReadOnlyDictionary<string, FileImpact> FileCommunities { get; init; } = new Dictionary<string, FileImpact>();
 
     public required int OtherSize { get; init; }
     public required int OtherTestSize { get; init; }

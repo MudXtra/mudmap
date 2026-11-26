@@ -1,14 +1,18 @@
+@implements IDisposable
+@inject MapScope Scope
+@inject ZoomService Zoom
 @* The detail sheet for a room or a repo: a MudXSheet from the right on wide screens, from the bottom on phones.
-   It is a standard (non-modal) sheet, so the map stays clickable while it is open; drag the handle to resize. *@
+   It is a standard (non-modal) sheet, so the map stays clickable and in sight while it is open; drag the handle to resize.
+   Sizes are capped in mudmaps.css: at most 420px (35% of the width) on the side, 55% of the height at the bottom. *@
 <MudHidden Breakpoint="Breakpoint.SmAndDown">
     <MudXSheet Open="IsOpen" OpenChanged="OpenChangedAsync" Position="Position.Right" Standard
-               CurrentSize="32" PresetSizes="@(new[] { 25, 32, 45, 60 })" AriaLabel="@Label" Class="mm-sheet">
+               CurrentSize="30" PresetSizes="@(new[] { 25, 30, 35 })" AriaLabel="@Label" Class="mm-sheet">
         @Content
     </MudXSheet>
 </MudHidden>
 <MudHidden Breakpoint="Breakpoint.MdAndUp">
     <MudXSheet Open="IsOpen" OpenChanged="OpenChangedAsync" Position="Position.Bottom" Standard
-               CurrentSize="55" PresetSizes="@(new[] { 30, 55, 85 })" AriaLabel="@Label" Class="mm-sheet">
+               CurrentSize="45" PresetSizes="@(new[] { 30, 45, 55 })" AriaLabel="@Label" Class="mm-sheet">
         @Content
     </MudXSheet>
 </MudHidden>
@@ -20,27 +24,41 @@
     [Parameter] public RepoInfo? RoomRepo { get; set; }
     [Parameter] public int WindowDays { get; set; } = 30;
     [Parameter] public EventCallback OnClose { get; set; }
+    /// <summary>Show the research folds (graph size, full community); Space and City only.</summary>
+    [Parameter] public bool Research { get; set; }
 
     private bool IsOpen => Room is not null || Repo is not null;
+    private bool _wasOpen;
 
     private string Label => Repo is not null ? $"{Repo.Name} details" : Room is not null ? $"{MapData.RoomName(Room)} details" : "Details";
 
+    protected override void OnParametersSet() => Scope.SetSheet(Repo?.Name ?? RoomRepo?.Name);
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // Opening on a phone: bring the map up above the sheet so both stay in sight.
+        if (IsOpen && !_wasOpen) await Zoom.RevealMapAsync();
+        _wasOpen = IsOpen;
+    }
+
     private RenderFragment Content => __builder =>
     {
-        <div class="mm-sheet-body pa-4">
+        <MudPaper Elevation="0" Square Class="mm-sheet-body pa-4">
             @if (Repo is not null)
             {
-                <RepoPanel Repo="Repo" WindowDays="WindowDays" OnClose="OnClose" />
+                <RepoPanel Repo="Repo" WindowDays="WindowDays" OnClose="OnClose" Research="Research" />
             }
             else if (Room is not null)
             {
-                <RoomPanel Cluster="Room" Repo="RoomRepo" OnClose="OnClose" />
+                <RoomPanel Cluster="Room" Repo="RoomRepo" OnClose="OnClose" Research="Research" />
             }
-        </div>
+        </MudPaper>
     };
 
     private async Task OpenChangedAsync(bool open)
     {
         if (!open && IsOpen) await OnClose.InvokeAsync();
     }
+
+    public void Dispose() => Scope.SetSheet(null);
 }

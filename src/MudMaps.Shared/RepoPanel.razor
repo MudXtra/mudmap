@@ -1,4 +1,5 @@
 @using System.Globalization
+@inject MapScope Scope
 @* The repo highlight card: what it is, where it stands, who is driving it. Every fact links to its page on GitHub. *@
 @if (Repo is not null)
 {
@@ -6,13 +7,13 @@
     var gh = Repo.Url.TrimEnd('/');
     var docs = DocsCatalog.For(Repo.FullName);
     <MudStack Row Justify="Justify.SpaceBetween" AlignItems="AlignItems.Start" Wrap="Wrap.NoWrap">
-        <div class="mm-min0">
+        <MudStack Spacing="0" Class="mm-min0">
             <MudText Typo="Typo.h5"><MudLink Href="@gh" Target="_blank" rel="noopener" Color="Color.Inherit"><Fit Text="@Repo.Name" Max="26" /></MudLink></MudText>
             @if (!string.IsNullOrWhiteSpace(h?.Description))
             {
-                <MudText Typo="Typo.body2" Class="mud-text-secondary mt-1">@h.Description</MudText>
+                <MudText Typo="Typo.body1" Class="mm-quiet mt-1">@h.Description</MudText>
             }
-        </div>
+        </MudStack>
         <MudIconButton Icon="@Icons.Material.Filled.Close" Size="Size.Small" aria-label="Close" OnClick="OnClose" />
     </MudStack>
 
@@ -45,11 +46,11 @@
                     <td>
                         @if (h.LatestRelease is null)
                         {
-                            <span>none published</span>
+                            <MudText Typo="Typo.inherit" HtmlTag="span">none published</MudText>
                         }
                         else
                         {
-                            <MudLink Href="@(h.LatestReleaseUrl ?? $"{gh}/releases")" Target="_blank"><Fit Text="@h.LatestRelease" Max="18" /></MudLink><span>, @Ago(h.LatestReleaseAt)</span>
+                            <MudLink Href="@(h.LatestReleaseUrl ?? $"{gh}/releases")" Target="_blank"><Fit Text="@h.LatestRelease" Max="18" /></MudLink><MudText Typo="Typo.inherit" HtmlTag="span">, @Ago(h.LatestReleaseAt)</MudText>
                         }
                     </td>
                 </tr>
@@ -59,12 +60,11 @@
                     <td>
                         @if (h.TopAuthor is null)
                         {
-                            <span>none this month</span>
+                            <MudText Typo="Typo.inherit" HtmlTag="span">none this month</MudText>
                         }
                         else
                         {
-                            <MudLink Href="@($"https://github.com/{h.TopAuthor}")" Target="_blank"><Fit Text="@h.TopAuthor" Max="18" /></MudLink>
-                            <span>, </span><MudLink Href="@($"{gh}/pulls?q=is%3Apr+author%3A{Uri.EscapeDataString(h.TopAuthor)}")" Target="_blank">@h.TopAuthorPrs (@h.TopAuthorMerged merged)</MudLink>
+                            <MudLink Href="@($"https://github.com/{h.TopAuthor}")" Target="_blank"><Fit Text="@h.TopAuthor" Max="18" /></MudLink><MudText Typo="Typo.inherit" HtmlTag="span">, </MudText><MudLink Href="@($"{gh}/pulls?q=is%3Apr+author%3A{Uri.EscapeDataString(h.TopAuthor)}")" Target="_blank">@h.TopAuthorPrs (@h.TopAuthorMerged merged)</MudLink>
                         }
                     </td>
                 </tr>
@@ -83,11 +83,19 @@
                     <MudLink Href="@($"{gh}/stargazers")" Target="_blank">@Repo.Stars.ToString("N0", CultureInfo.InvariantCulture)</MudLink>
                     @if (h is not null)
                     {
-                        <span> / </span><MudLink Href="@($"{gh}/forks")" Target="_blank">@h.Forks.ToString("N0", CultureInfo.InvariantCulture)</MudLink>
+                        <MudText Typo="Typo.inherit" HtmlTag="span"> / </MudText><MudLink Href="@($"{gh}/forks")" Target="_blank">@h.Forks.ToString("N0", CultureInfo.InvariantCulture)</MudLink>
                     }
                 </td>
             </tr>
             <tr><td>Mapped code items</td><td>@Repo.Nodes.ToString("N0", CultureInfo.InvariantCulture)</td></tr>
+            @if (Research)
+            {
+                <tr><td>Code graph</td><td><GraphFiguresText Repo="@Repo.FullName" Typo="Typo.inherit" /></td></tr>
+            }
+            @if (Scope.RepoInfo(Repo.Name) is { TestNodes: > 0 } full)
+            {
+                <tr><td>Test items</td><td>@full.TestNodes.ToString("N0", CultureInfo.InvariantCulture) (@(Scope.IncludeTests ? "shown on the map" : "hidden from the map"))</td></tr>
+            }
         </tbody>
     </MudSimpleTable>
     <MudButton Href="@gh" Target="_blank" Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small" Class="mt-3"
@@ -98,6 +106,8 @@
     [Parameter] public RepoInfo? Repo { get; set; }
     [Parameter] public int WindowDays { get; set; } = 30;
     [Parameter] public EventCallback OnClose { get; set; }
+    /// <summary>Show the code graph's size (graphify graph_stats).</summary>
+    [Parameter] public bool Research { get; set; }
 
     private string Since => DateTimeOffset.UtcNow.AddDays(-WindowDays).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
 
@@ -106,12 +116,10 @@
     {
         if (at is not { } t) return "unknown";
         var days = (int)(DateTimeOffset.UtcNow - t).TotalDays;
-        return days switch
-        {
-            < 1 => "today",
-            1 => "yesterday",
-            < 31 => $"{days} days ago",
-            _ => t.ToString("MMM d, yyyy", CultureInfo.InvariantCulture),
-        };
+        // Written as branches, not a switch expression: the Razor compiler in SDK 10.0.115 reads the leading `<` of a
+        // relational pattern (`< 1 =>`) as the start of an HTML tag inside an @code block, which breaks the file.
+        if (days < 1) return "today";
+        if (days == 1) return "yesterday";
+        return days < 31 ? $"{days} days ago" : t.ToString("MMM d, yyyy", CultureInfo.InvariantCulture);
     }
 }

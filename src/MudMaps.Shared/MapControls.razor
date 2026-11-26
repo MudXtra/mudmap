@@ -1,16 +1,25 @@
-@* Map options under the map: show or hide test code. *@
+@using System.Globalization
+@implements IDisposable
+@inject MapScope Scope
+@inject MotionSettings Motion
+@* Map options under the map: show or hide test code, with the count for the repo in view (or the whole map),
+   and skip the rides between levels. *@
 <MudPaper Elevation="0" Class="mm-controls px-3 py-1 mt-2" role="group" aria-label="Map options">
     <MudStack Row AlignItems="AlignItems.Center" Spacing="3" Wrap="Wrap.Wrap">
         <MudTooltip Text="@(Available ? "Count test code in areas and rooms" : "This snapshot does not say which code is tests")">
             <MudCheckBox T="bool" Value="IncludeTests" ValueChanged="IncludeTestsChanged" Disabled="!Available" Color="Color.Primary"
-                         Label="Include Tests" Size="Size.Small" />
+                         Label="Include tests" Size="Size.Small" />
         </MudTooltip>
-        @if (Available && TestItems > 0)
+        @if (Available && Note is { } note)
         {
-            <MudText Typo="Typo.caption" Class="mud-text-secondary">@TestItems.ToString("N0", System.Globalization.CultureInfo.InvariantCulture) test items @(IncludeTests ? "shown" : "hidden")</MudText>
+            <MudText Typo="Typo.body2" Class="mm-controls-note" aria-live="polite">@note</MudText>
         }
         @ChildContent
     </MudStack>
+    <MudTooltip Text="Jump straight to each place instead of travelling there">
+        <MudCheckBox T="bool" Value="Motion.SkipAnimations" ValueChanged="SetSkipAsync" Color="Color.Primary"
+                     Label="Skip animations" Size="Size.Small" Class="mm-skip" />
+    </MudTooltip>
 </MudPaper>
 
 @code {
@@ -18,7 +27,45 @@
     [Parameter] public EventCallback<bool> IncludeTestsChanged { get; set; }
     /// <summary>False when the data has no test counts (the baked-in snapshot).</summary>
     [Parameter] public bool Available { get; set; } = true;
+    /// <summary>Test items on the whole map; shown when no repo is zoomed or selected.</summary>
     [Parameter] public int TestItems { get; set; }
     /// <summary>Extra controls a map adds to the bar.</summary>
     [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>"4,213 test items in MudBlazor, hidden" for the repo in view, or the whole-map total.</summary>
+    private string? Note
+    {
+        get
+        {
+            var state = IncludeTests ? "shown" : "hidden";
+            if (Scope.Stats is { Repo: { } repo } stats)
+            {
+                return stats.TestItems == 0 ? $"No test items in {repo}" : $"{N(stats.TestItems)} test items in {repo}, {state}";
+            }
+            var all = Scope.Stats?.TestItems ?? TestItems;
+            var repos = Scope.Stats?.Repos ?? 0;
+            return all == 0 ? null : $"{N(all)} test items across {(repos > 0 ? $"all {repos} repos" : "the map")}, {state}";
+        }
+    }
+
+    private static string N(int n) => n.ToString("N0", CultureInfo.InvariantCulture);
+
+    protected override async Task OnInitializedAsync()
+    {
+        Scope.Changed += OnScopeChanged;
+        Motion.Changed += OnScopeChanged;
+        await Motion.LoadAsync();
+    }
+
+    private Task SetSkipAsync(bool skip) => Motion.SetAsync(skip);
+
+    protected override void OnParametersSet() => Scope.SetIncludeTests(IncludeTests);
+
+    private void OnScopeChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        Scope.Changed -= OnScopeChanged;
+        Motion.Changed -= OnScopeChanged;
+    }
 }

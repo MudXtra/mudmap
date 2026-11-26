@@ -1,0 +1,204 @@
+@implements IDisposable
+@inject ResearchState State
+@* The search lens above the map: type to light the matching rooms (graphify query_graph) and dim the rest. The scope
+   chip follows the map, narrowing to the repo the map is in; one click widens it back to every Mud repo. Beside it, a
+   pull request finder and the buttons that open the research drawer and the review board. *@
+<MudPaper Elevation="0" Class="mm-search pa-2 mt-2" role="search" aria-label="Search the map">
+    <MudStack Row AlignItems="AlignItems.Center" Spacing="2" Wrap="Wrap.Wrap">
+        <MudStack Row AlignItems="AlignItems.Center" Spacing="1" Class="mm-search-main mm-min0">
+            <MudTextField T="string" @bind-Value="_text" Immediate DebounceInterval="450" OnDebounceIntervalElapsed="SearchAsync"
+                          OnKeyDown="KeyAsync" Placeholder="Search rooms, classes, components…" aria-label="Search rooms, classes, components"
+                          Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" Clearable OnClearButtonClick="Clear"
+                          Variant="Variant.Outlined" Margin="Margin.Dense" MaxLength="300" Class="mm-search-field" />
+            @if (State.Search.Repo is { } repo)
+            {
+                <MudTooltip Text="Search every Mud repo">
+                    <MudChip T="string" Color="Color.Primary" Variant="Variant.Outlined" OnClose="WidenAsync" Class="mm-scope-chip"
+                             aria-label="@($"Searching in {State.NameOf(repo)}. Remove to search all Mud repos.")">In @State.NameOf(repo)</MudChip>
+                </MudTooltip>
+            }
+            else
+            {
+                <MudChip T="string" Variant="Variant.Outlined" Class="mm-scope-chip" aria-label="Searching all Mud repos">All Mud repos</MudChip>
+            }
+        </MudStack>
+        <PrPicker Value="_pr" ValueChanged="PickPrAsync" OnOpen="() => _open = false" Class="mm-search-pr" />
+        <MudStack Row Spacing="1">
+            <MudButton Variant="@(State.Panel == ResearchPanelKind.Research ? Variant.Filled : Variant.Outlined)" Color="Color.Primary"
+                       StartIcon="@Icons.Material.Filled.ManageSearch" OnClick="() => State.Toggle(ResearchPanelKind.Research)"
+                       aria-pressed="@(State.Panel == ResearchPanelKind.Research ? "true" : "false")">Research</MudButton>
+            <MudButton Variant="@(State.BoardOpen ? Variant.Filled : Variant.Outlined)" Color="Color.Primary"
+                       StartIcon="@Icons.Material.Filled.ViewKanban" OnClick="() => State.Toggle(ResearchPanelKind.Board)"
+                       aria-pressed="@(State.BoardOpen ? "true" : "false")">PR board</MudButton>
+        </MudStack>
+    </MudStack>
+
+    @if (_busy)
+    {
+        <MudProgressLinear Color="Color.Primary" Indeterminate Size="Size.Small" Class="mt-1" />
+    }
+    @if (_error is not null)
+    {
+        <ResearchError Error="_error" RetryAfter="_retryAfter" OnRetry="RunAsync" Class="mt-2" />
+    }
+    else if (_result is { } result && _open)
+    {
+        <MudPaper Elevation="3" Class="mm-search-results mt-2 pa-2" aria-live="polite">
+            <MudStack Row AlignItems="AlignItems.Center" Spacing="2" Wrap="Wrap.Wrap">
+                <MudText Typo="Typo.body2" Class="mm-grow">@Summary(result)</MudText>
+                @if (State.Search.Repo is not null)
+                {
+                    <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Primary" OnClick="WidenAsync">Search all Mud repos</MudButton>
+                }
+                <MudIconButton Icon="@Icons.Material.Filled.Close" Size="Size.Small" aria-label="Hide the results list" OnClick="() => _open = false" />
+            </MudStack>
+            @if (result.Links is { Count: > 0 } links)
+            {
+                <ResearchLinks Links="links" Max="4" />
+            }
+        </MudPaper>
+    }
+    @if (State.Lens is { } lens && !(_open && _result is not null && _error is null))
+    {
+        <MudStack Row AlignItems="AlignItems.Center" Spacing="2" Class="mt-1 px-1" aria-live="polite">
+            <MudText Typo="Typo.body2">@lens.Label: @(lens.RoomCount == 1 ? "1 room lit" : $"{lens.RoomCount} rooms lit")@(lens.RoomCount > 0 ? "; the rest of the map is dimmed." : ".")</MudText>
+            <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Primary" OnClick="ClearLens">Clear</MudButton>
+        </MudStack>
+    }
+</MudPaper>
+
+@code {
+    private string? _text;
+    private string? _ran;
+    private ResearchResponse? _result;
+    private string? _error;
+    private int? _retryAfter;
+    private bool _busy;
+    private bool _open;
+    private PrItem? _pr;
+    private CancellationTokenSource? _cts;
+
+    protected override void OnInitialized() => State.Changed += OnChanged;
+
+    private Task KeyAsync(KeyboardEventArgs e) => e.Key switch
+    {
+        "Enter" => SearchAsync(_text),
+        "Escape" => HideAsync(),
+        _ => Task.CompletedTask,
+    };
+
+    private Task HideAsync()
+    {
+        _open = false;
+        return Task.CompletedTask;
+    }
+
+    private Task SearchAsync(string? text)
+    {
+        _text = text;
+        var q = text?.Trim() ?? "";
+        if (q.Length < 2)
+        {
+            if (q.Length == 0) Clear();
+            return Task.CompletedTask;
+        }
+        var key = q + "\n" + State.Search.Repo;
+        if (key == _ran && _error is null)
+        {
+            _open = true;
+            return Task.CompletedTask;
+        }
+        return RunAsync();
+    }
+
+    private async Task RunAsync()
+    {
+        var q = _text?.Trim() ?? "";
+        if (q.Length < 2) return;
+        _cts?.Cancel();
+        var cts = _cts = new CancellationTokenSource();
+        var args = new Dictionary<string, object?> { ["question"] = q };
+        if (State.Search.Repo is { } repo) args["project_path"] = repo;
+        _busy = true;
+        _error = null;
+        StateHasChanged();
+        var outcome = await State.Client.CallAsync("query_graph", args, cts.Token);
+        if (cts.IsCancellationRequested) return;
+        _busy = false;
+        _ran = q + "\n" + State.Search.Repo;
+        if (!outcome.Ok)
+        {
+            _result = null;
+            _error = outcome.Error;
+            _retryAfter = outcome.RetryAfter;
+            return;
+        }
+        _result = outcome.Value;
+        _open = true;
+        State.SetLens($"Search “{q}”", _result!.Rooms ?? []);
+    }
+
+    private string Summary(ResearchResponse r)
+    {
+        var lens = State.Lens;
+        var rooms = lens?.RoomCount ?? 0;
+        if (rooms == 0) return r.IsError ? r.Text : "No rooms match.";
+        var repos = lens!.Repos.Count;
+        var where = State.Search.Repo is { } repo ? $"in {State.NameOf(repo)}" : repos == 1 ? "in 1 repo" : $"across {repos} repos";
+        return $"{(rooms == 1 ? "1 room lit" : $"{rooms} rooms lit")} {where}";
+    }
+
+    private Task WidenAsync()
+    {
+        State.Search.Widen();
+        StateHasChanged();
+        return (_text?.Trim().Length ?? 0) >= 2 ? RunAsync() : Task.CompletedTask;
+    }
+
+    private void ClearLens()
+    {
+        if (State.Lens?.Label.StartsWith("Search", StringComparison.Ordinal) == true) Clear();
+        else State.ClearLens();
+    }
+
+    private void Clear()
+    {
+        _cts?.Cancel();
+        _text = null;
+        _ran = null;
+        _result = null;
+        _error = null;
+        _busy = false;
+        _open = false;
+        State.ClearLens();
+    }
+
+    private async Task PickPrAsync(PrItem? pr)
+    {
+        _pr = pr;
+        if (pr is null) return;
+        await State.ShowOnMapAsync($"PR #{pr.Number}", pr.RoomList.Select(r => new LensRoom(pr.Repo, r, 1)));
+        State.OpenTab(ResearchDrawer.PrImpactTab, pr);
+    }
+
+    private string? _lastScope;
+
+    private void OnChanged()
+    {
+        // The scope moved with the map: run the search again for the new scope.
+        if (State.Search.Repo != _lastScope)
+        {
+            _lastScope = State.Search.Repo;
+            if (_ran is not null) _ = InvokeAsync(RunAsync);
+        }
+        // Something else replaced the search lens (a research tab, a PR): the results list no longer describes the map.
+        if (_result is not null && State.Lens?.Label.StartsWith("Search", StringComparison.Ordinal) != true) _open = false;
+        InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        State.Changed -= OnChanged;
+        _cts?.Cancel();
+    }
+}

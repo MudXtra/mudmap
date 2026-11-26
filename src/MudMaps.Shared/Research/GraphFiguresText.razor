@@ -1,0 +1,30 @@
+@using System.Globalization
+@inject ResearchState State
+@* The size of a repo's code graph (graphify graph_stats), or of the merged graph when Repo is null. Asked once per repo
+   per visit; nothing shows until it answers, and nothing if it cannot. *@
+@if (_figures is { } f)
+{
+    <MudText Typo="@Typo" Class="@Class">@Prefix@N(f.Nodes) nodes · @N(f.Edges) edges · @N(f.Communities) communities</MudText>
+}
+
+@code {
+    /// <summary>The repository's full name, or null for the merged graph of every repo.</summary>
+    [Parameter] public string? Repo { get; set; }
+    [Parameter] public string? Prefix { get; set; }
+    [Parameter] public Typo Typo { get; set; } = Typo.body2;
+    [Parameter] public string? Class { get; set; }
+
+    private GraphFigures? _figures;
+    private string? _for = "\0";
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_for == Repo) return;
+        _for = Repo;
+        _figures = null;
+        var figures = await State.FiguresAsync(Repo);
+        if (_for == Repo) _figures = figures;
+    }
+
+    private static string N(int n) => n.ToString("N0", CultureInfo.InvariantCulture);
+}

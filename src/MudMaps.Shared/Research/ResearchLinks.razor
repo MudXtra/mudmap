@@ -1,0 +1,39 @@
+@inject ResearchState State
+@* The places a research result names: label, repo and file, a way to show each on the map, and its source on GitHub. *@
+<MudList T="string" Dense Class="mm-links py-0" aria-label="Links">
+    @foreach (var link in Links.Take(Max))
+    {
+        <MudListItem T="string" Class="mm-link-item px-1">
+            <MudStack Row AlignItems="AlignItems.Center" Spacing="1" Class="mm-min0">
+                <MudStack Spacing="0" Class="mm-min0 mm-grow">
+                    <MudText Typo="Typo.body2" Class="mm-fit">@link.Label</MudText>
+                    <MudText Typo="Typo.caption" Class="mm-fit mm-quiet mm-code">@(State.NameOf(link.Repo) ?? link.Repo) · @link.File@(link.Line is { } l ? $":{l}" : "")</MudText>
+                </MudStack>
+                @if (link.RoomId is { } room)
+                {
+                    <MudButton Size="Size.Small" Variant="Variant.Outlined" OnClick="() => ShowAsync(link, room)" aria-label="@($"Show {link.Label} on the map")">Show on map</MudButton>
+                }
+                @if (Safe(link.Github) is { } github)
+                {
+                    <MudLink Href="@github" Target="_blank" Typo="Typo.body2" aria-label="@($"{link.Label} on GitHub")">GitHub</MudLink>
+                }
+            </MudStack>
+        </MudListItem>
+    }
+</MudList>
+@if (Links.Count > Max)
+{
+    <MudText Typo="Typo.caption" Class="mm-quiet px-1">and @(Links.Count - Max) more</MudText>
+}
+
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<ResearchLink> Links { get; set; } = [];
+    [Parameter] public int Max { get; set; } = 50;
+
+    private Task ShowAsync(ResearchLink link, string room) =>
+        State.ShowOnMapAsync(link.Label, [new LensRoom(link.Repo, room, 1)]);
+
+    /// <summary>Only https links to GitHub are rendered as links; anything else from the service is dropped.</summary>
+    public static string? Safe(string? url) =>
+        url is not null && Uri.TryCreate(url, UriKind.Absolute, out var u) && u.Scheme == Uri.UriSchemeHttps && u.Host == "github.com" ? url : null;
+}

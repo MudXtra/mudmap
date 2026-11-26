@@ -1,0 +1,114 @@
+@using System.Globalization
+@implements IDisposable
+@inject MapDataService Maps
+@* One quiet line under the map: a sponsor link, how old the data is, and where the data comes from (the repos, each with its
+   licence). It only ever shows names, counts and licence labels: the maps show structure, never source code. *@
+<MudStack Row Wrap="Wrap.Wrap" AlignItems="AlignItems.Center" Justify="Justify.Center" Spacing="3" Class="mm-footer mt-6" role="contentinfo">
+    <MudButton Href="https://github.com/sponsors/versile2" Target="_blank" rel="noopener" Variant="Variant.Text" Size="Size.Small"
+               Color="Color.Default" StartIcon="@Icons.Material.Outlined.FavoriteBorder" Class="mm-footer-link">Sponsor</MudButton>
+
+    @if (Age is { } age)
+    {
+        <MudTooltip Text="@(Stale ? "The map has not been refreshed for over 3 hours" : "How long ago the map data was last confirmed current")">
+            <MudText Typo="Typo.body2" Color="@(Stale ? Color.Warning : Color.Default)" Class="mm-footer-age" aria-live="polite">
+                @if (Stale)
+                {
+                    <MudIcon Icon="@Icons.Material.Outlined.WarningAmber" Size="Size.Small" Class="mm-footer-icon" aria-hidden="true" />
+                }
+                Updated @Ago(age)@(Stale ? ", may be out of date" : "")
+            </MudText>
+        </MudTooltip>
+    }
+
+    @if (Research)
+    {
+        <GraphFiguresText Prefix="Merged code graph: " Class="mm-footer-age" />
+    }
+
+    @if (Repos.Count > 0)
+    {
+        <MudMenu Label="@($"Map data from {Repos.Count} open-source repos")" Variant="Variant.Text" Size="Size.Small" Color="Color.Default"
+                 StartIcon="@Icons.Material.Outlined.Info" EndIcon="@Icons.Material.Filled.ArrowDropDown" Dense MaxHeight="360"
+                 AnchorOrigin="Origin.TopCenter" TransformOrigin="Origin.BottomCenter" Class="mm-footer-link" PopoverClass="mm-credits" AriaLabel="Open-source repos and licenses">
+            @foreach (var repo in Repos)
+            {
+                <MudMenuItem Href="@repo.Url" Target="_blank" Icon="@Icons.Material.Outlined.OpenInNew">
+                    <MudStack Row AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Spacing="2" Wrap="Wrap.NoWrap">
+                        <MudText Typo="Typo.body2" Class="mm-credit-name">@repo.FullName</MudText>
+                        <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Class="ma-0 mm-license">@LicenseOf(repo)</MudChip>
+                    </MudStack>
+                </MudMenuItem>
+            }
+        </MudMenu>
+    }
+</MudStack>
+
+@code {
+    /// <summary>The map's repos, from the data (the count and the list are never hard-coded).</summary>
+    [Parameter] public IReadOnlyList<RepoInfo>? RepoList { get; set; }
+    /// <summary>The data's <c>generatedAt</c> stamp, as the service sends it. Used only when the service's status is unavailable.</summary>
+    [Parameter] public string? GeneratedAt { get; set; }
+    /// <summary>Show the merged code graph's size (graphify graph_stats); Space and City only.</summary>
+    [Parameter] public bool Research { get; set; }
+
+    private static readonly TimeSpan StaleAfter = TimeSpan.FromHours(3);
+
+    /// <summary>Licences this map knows when the service does not say: MIT except these.</summary>
+    private static readonly Dictionary<string, string> KnownLicenses = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["MudBlazor/TryMudBlazor"] = "GPL-2.0",
+        ["CodeBeamOrg/UltimateAuth"] = "Apache-2.0",
+    };
+
+    private static readonly TimeSpan StatusEvery = TimeSpan.FromSeconds(60);
+
+    private Timer? _tick;
+    private Timer? _statusTick;
+    private DateTimeOffset? _checkedAt;
+    private IReadOnlyList<RepoInfo> Repos => RepoList ?? [];
+
+    /// <summary>Age of the data: since the service last confirmed it current, else since the map was generated.</summary>
+    private TimeSpan? Age => _checkedAt is { } checkedAt
+        ? DateTimeOffset.UtcNow - checkedAt
+        : DateTimeOffset.TryParse(GeneratedAt, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var at)
+            ? DateTimeOffset.UtcNow - at
+            : null;
+
+    private bool Stale => Age is { } age && age > StaleAfter;
+
+    /// <summary>The licence the service reported for the repo, else the one this map knows, else MIT.</summary>
+    private static string LicenseOf(RepoInfo repo) =>
+        !string.IsNullOrWhiteSpace(repo.Highlights?.License) ? repo.Highlights!.License!
+        : KnownLicenses.GetValueOrDefault(repo.FullName, "MIT");
+
+    /// <summary>"just now", "5 minutes ago", "3 hours ago", "2 days ago".</summary>
+    private static string Ago(TimeSpan age)
+    {
+        if (age < TimeSpan.FromMinutes(1)) return "just now";
+        if (age < TimeSpan.FromHours(1)) return Plural((int)age.TotalMinutes, "minute");
+        if (age < TimeSpan.FromDays(2)) return Plural((int)age.TotalHours, "hour");
+        return Plural((int)age.TotalDays, "day");
+    }
+
+    private static string Plural(int n, string unit) => $"{n} {unit}{(n == 1 ? "" : "s")} ago";
+
+    protected override async Task OnInitializedAsync()
+    {
+        _tick = new Timer(_ => InvokeAsync(StateHasChanged), null, TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(30));
+        _statusTick = new Timer(_ => InvokeAsync(RefreshStatusAsync), null, StatusEvery, StatusEvery);
+        await RefreshStatusAsync();
+    }
+
+    private async Task RefreshStatusAsync()
+    {
+        // Keep the last good value if one poll fails; no value at all falls back to GeneratedAt.
+        if (await Maps.LoadStatusAsync() is { CheckedAt: { } at }) _checkedAt = at;
+        StateHasChanged();
+    }
+
+    public void Dispose()
+    {
+        _tick?.Dispose();
+        _statusTick?.Dispose();
+    }
+}

@@ -13,8 +13,15 @@
     <PackageReference Include="MudBlazor" Version="9.11.0" />
   </ItemGroup>
 
+  <!-- Fingerprint the app's own JS modules so the import map serves a new URL whenever a script changes. -->
+  <ItemGroup>
+    <StaticWebAssetFingerprintPattern Include="AppJs" Pattern="*.js" Expression="#[.{fingerprint}]!" />
+  </ItemGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\MudMaps.Shared\MudMaps.Shared.csproj" />
   </ItemGroup>
+
+  <Import Project="..\MudMaps.Shared\StampSharedCss.targets" />
 
 </Project>

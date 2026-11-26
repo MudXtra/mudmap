@@ -17,4 +17,6 @@
     <ProjectReference Include="..\MudMaps.Shared\MudMaps.Shared.csproj" />
   </ItemGroup>
 
+  <Import Project="..\MudMaps.Shared\StampSharedCss.targets" />
+
 </Project>

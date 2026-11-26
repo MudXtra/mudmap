@@ -7,7 +7,7 @@ html { scrollbar-color: var(--paper-3) #0f0a06; }
 .mm-loading { color: var(--muted); padding: 48px; font-family: "Instrument Sans", sans-serif; }
 .mm-stage { background: var(--soil); }
 .mm-fig-value { color: var(--accent); }
-svg text { font-family: "Instrument Sans", ui-sans-serif, sans-serif; }
+svg text { font-family: "Instrument Sans", ui-sans-serif, sans-serif; text-rendering: geometricPrecision; }
 svg .lab { transition: opacity 300ms ease-out; }
 svg.zoomed .lab { opacity: 0; }
 svg .chamber { transition: opacity 400ms ease-out; }
@@ -15,3 +15,36 @@ svg.zoomed .chamber:not(.current) { opacity: .35; }
 @media (prefers-reduced-motion: reduce) { svg .lab, svg .chamber { transition: none; } }
 
 .mm-figs { gap: 32px; }
+/* Life: chambers with pull requests breathe, the grass sways. */
+.chamber.hot ellipse { animation: mm-breathe 3.2s ease-in-out infinite; }
+@keyframes mm-breathe { 50% { stroke-opacity: .45; } }
+.grass { transform-box: fill-box; transform-origin: bottom; animation: mm-sway 6s ease-in-out infinite; }
+@keyframes mm-sway { 50% { transform: skewX(1.6deg); } }
+@media (prefers-reduced-motion: reduce) { .chamber.hot ellipse, .grass { animation: none; } }
+
+/* Chamber labels: placed by colony.js where they fit; the rest show in the tooltip. */
+.clab { paint-order: stroke; stroke: var(--soil); stroke-width: 3px; stroke-linejoin: round; }
+.clab.off, .rname.off, .nlab.off, .ntick.off { opacity: 0 !important; }
+svg[data-riding] .mm-pop { pointer-events: none; }
+
+/* Hover tooltip in MudBlazor's tooltip style, placed next to the pointer by colony.js. */
+.mm-tip {
+  position: absolute; left: 0; top: 0; z-index: 6; max-width: min(280px, 80%); pointer-events: none;
+  padding: 4px 10px; border-radius: var(--mud-default-borderradius, 4px);
+  background: var(--mud-palette-grey-darker, #424242); color: var(--mud-palette-white, #fff);
+  border: 1px solid rgb(255 255 255 / .12); box-shadow: var(--mud-elevation-8, 0 6px 14px rgb(0 0 0 / .35));
+  font: 500 .75rem/1.45 var(--mud-typography-default-family, "Instrument Sans", sans-serif);
+  opacity: 0; visibility: hidden; transition: opacity 120ms ease, visibility 0s 120ms;
+}
+.mm-tip[data-on] { opacity: 1; visibility: visible; transition: opacity 120ms ease; }
+.mm-tip b { display: block; font-weight: 600; overflow-wrap: anywhere; }
+.mm-tip span { display: block; opacity: .78; }
+@media (prefers-reduced-motion: reduce) { .mm-tip, .mm-tip[data-on] { transition: none; } }
+
+/* While the ant rides, the chamber names step aside (they would grow huge as the view zooms in). */
+svg[data-riding] .lab { opacity: 0 !important; transition: opacity 180ms ease-out; }
+svg[data-riding=frozen] .lab, svg[data-riding=frozen] .chamber { transition: none; }
+
+/* Room names keep a dark halo where they reach past their room; colony.js sets the halo width for the zoom. */
+.rname { paint-order: stroke; stroke: var(--tunnel); stroke-linejoin: round; }
+.rname:not([transform]) { opacity: 0; }

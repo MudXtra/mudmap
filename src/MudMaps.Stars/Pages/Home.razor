@@ -3,114 +3,318 @@
 
 <PageTitle>The Mud system</PageTitle>
 
-<div class="mm-wrap">
+<MudContainer MaxWidth="MaxWidth.False" Gutters="false" Class="mm-wrap">
     @if (Data is null)
     {
         <MudProgressLinear Color="Color.Primary" Indeterminate Class="mt-8" />
     }
     else
     {
-        <MapHero Title="The Mud system"
-                 Lede="Nine stars, their code in orbit. Every moon is four pull requests from this month."
-                 Figures="Figures" />
+        <MapHero Title="The Mud system" Lede="@Lede" Figures="Figures">
+            <Nav><MapNav Current="space" /></Nav>
+        </MapHero>
 
-        <ZoomTrail Steps="Trail" />
+        <SearchBar />
 
-        <div class="mm-stage mt-2">
-            <svg @ref="Svg" viewBox="@($"0 0 {F(ViewWidth)} {F(ViewHeight)}")" role="img" aria-label="Star systems of the Mud repositories">
-                <rect x="-800" y="-800" width="3200" height="2600" fill="var(--card)" />
-                @foreach (var d in _dots)
-                {
-                    <circle class="@(d.Twinkle ? "twinkle" : null)" style="@(d.Twinkle ? $"animation-delay:-{F(d.Delay)}s" : null)"
-                            cx="@F(d.X)" cy="@F(d.Y)" r="@F(d.R)" fill="var(--silver)" opacity=".5" />
-                }
+        <ZoomTrail Steps="SpaceTrail" />
 
-                @foreach (var p in _planets)
-                {
-                    <ellipse class="lab" style="@LabelStyle" cx="@F(p.Cx)" cy="@F(p.Cy)" rx="@F(p.Orbit)" ry="@F(p.Orbit * .5)"
-                             fill="none" stroke="var(--border)" stroke-width="1" opacity=".7" />
-                }
-                @foreach (var a in _arcs)
-                {
-                    <path class="lab" style="@LabelStyle" d="@a.Path" fill="none" stroke="var(--purple)" stroke-width="1.5" stroke-dasharray="4 6" opacity=".7" />
-                }
+        <MudPaper Elevation="0" Class="mm-stage mt-2">
+            <svg @ref="Svg" viewBox="@($"0 0 {F(ViewWidth)} {F(ViewHeight)}")" role="img" style="@($"--u:{F(Px)}")"
+                 aria-label="@(Level switch { 2 => $"Planet {CurrentHood!.Label} and its satellites", 1 => $"The {_repo} star system", _ => "Star systems of the Mud repositories" })">
+                <defs>
+                    <radialGradient id="nebula-a"><stop offset="0" stop-color="var(--purple)" stop-opacity=".16" /><stop offset="1" stop-color="var(--purple)" stop-opacity="0" /></radialGradient>
+                    <radialGradient id="nebula-b"><stop offset="0" stop-color="var(--gold)" stop-opacity=".07" /><stop offset="1" stop-color="var(--gold)" stop-opacity="0" /></radialGradient>
+                    <radialGradient id="planet-hot" cx=".38" cy=".34"><stop offset="0" stop-color="#FEF3C7" /><stop offset=".45" stop-color="var(--gold)" /><stop offset="1" stop-color="#A16207" /></radialGradient>
+                    <radialGradient id="planet-cold" cx=".38" cy=".34"><stop offset="0" stop-color="#94A3B8" /><stop offset=".5" stop-color="var(--cold)" /><stop offset="1" stop-color="#1E293B" /></radialGradient>
+                </defs>
+                <rect class="@(Level > 0 ? "backdrop away" : "backdrop")" x="-800" y="-800" width="@F(ViewWidth + 1600)" height="@F(ViewHeight + 1600)" fill="var(--card)" @onclick="BackgroundAsync" />
+                <g class="sky" pointer-events="none">
+                    <ellipse class="nebula" cx="@F(ViewWidth * .62)" cy="@F(ViewHeight * .43)" rx="@F(ViewWidth * .33)" ry="@F(ViewHeight * .26)" fill="url(#nebula-a)" />
+                    <ellipse class="nebula" style="animation-delay:-25s" cx="@F(ViewWidth * .24)" cy="@F(ViewHeight * .7)" rx="@F(ViewWidth * .26)" ry="@F(ViewHeight * .22)" fill="url(#nebula-b)" />
+                    @foreach (var d in _dots)
+                    {
+                        <circle class="@(d.Twinkle ? "twinkle" : null)" style="@(d.Twinkle ? $"animation-delay:-{F(d.Delay)}s" : null)"
+                                cx="@F(d.X)" cy="@F(d.Y)" r="@F(d.R)" fill="var(--silver)" opacity=".5" />
+                    }
+                </g>
 
-                @foreach (var s in _stars)
+                @if (Level == 0)
                 {
-                    <g class="area mm-hot" style="@(CurrentHood is null ? "opacity:1" : "opacity:.12")" tabindex="0" role="button" aria-label="@($"{s.Repo.Name}: {s.Repo.Prs} pull requests. Details.")"
-                       @onclick="() => OpenRepo(s.Repo)" @onkeydown="e => KeyAsync(e, () => { OpenRepo(s.Repo); return Task.CompletedTask; })">
-                        @for (var i = 4; i >= 1; i--)
-                        {
-                            <circle cx="@F(s.X)" cy="@F(s.Y)" r="@F(s.R + i * 6)" fill="@s.Fill" opacity=".06" />
-                        }
-                        <circle cx="@F(s.X)" cy="@F(s.Y)" r="@F(s.R)" fill="@s.Fill" />
-                        <text class="lab" style="@LabelStyle" x="@F(s.X)" y="@F(s.LabelY)" text-anchor="middle" font-weight="600"
-                              font-size="@(s.Repo.Nodes > 10000 ? "18" : "13")" fill="var(--fg)">@s.Repo.Name</text>
-                        <text class="lab" style="@LabelStyle" x="@F(s.X)" y="@F(s.LabelY + 16)" text-anchor="middle" font-family="Fira Code, monospace"
-                              font-size="11" fill="var(--muted)">@(s.Repo.Prs > 0 ? $"{s.Repo.Prs} pull requests" : "quiet this month")</text>
-                    </g>
-                }
-
-                @foreach (var p in _planets)
-                {
-                    var hot = p.Hood.Prs > 0;
-                    var x0 = p.Cx + Math.Cos(p.Angle) * p.Orbit;
-                    var y0 = p.Cy + Math.Sin(p.Angle) * p.Orbit * .5;
-                    <g @key="p.Hood.Key" class="planet" data-key="@p.Hood.Key" data-cx="@F(p.Cx)" data-cy="@F(p.Cy)" data-orbit="@F(p.Orbit)"
-                       data-angle="@F(p.Angle)" data-speed="@F(p.Speed)" transform="@($"translate({F(x0)},{F(y0)})")">
-                        <g class="area mm-hot" style="@AreaStyle(p.Hood)" tabindex="0" role="button"
-                           aria-label="@($"{p.Hood.Label} in {p.Hood.Repo}, {p.Hood.Prs} pull requests. Fly in.")"
-                           @onclick="() => OpenHoodAsync(p.Hood)" @onkeydown="e => KeyAsync(e, () => OpenHoodAsync(p.Hood))">
-                            <circle r="@F(p.R + 6)" fill="transparent" />
-                            <circle r="@F(p.R)" fill="@(hot ? "var(--gold)" : "var(--cold)")" stroke="var(--card)" stroke-width="2" />
-                            @if (p.Ring)
+                    @* The whole sky: every repo as its whole star system (star, rings, planets and moons, all moving). Each
+                       system is one target with one name: the planets inside are scenery here, not separate targets. *@
+                    <g class="cam" data-level="0">
+                        <g pointer-events="none">
+                            @foreach (var a in _arcs)
                             {
-                                <ellipse rx="@F(p.R * 1.8)" ry="@F(p.R * .45)" fill="none" stroke="var(--gold)" stroke-width="2" opacity=".9" />
+                                <path d="@a.Path" fill="none" stroke="var(--purple)" stroke-width="@F(1.4 * Px / 1.2)" stroke-dasharray="4 7" opacity=".45" />
                             }
-                            @if (p.Moons > 0)
-                            {
-                                <g class="moons">
-                                    @for (var m = 0; m < p.Moons; m++)
+                        </g>
+                        @foreach (var s in _systems)
+                        {
+                            <g @key="@($"sys-{s.Repo.Name}")" class="@($"area sys mm-hot mm-pop{LensRepoClass(s.Repo.Name)}")" tabindex="0" role="button" data-sys="@s.Repo.Name"
+                               data-tip="@s.Repo.Name" data-tip-sub="@StarTip(s.Repo)" aria-label="@($"{s.Repo.Name}: {Prs(s.Repo.Prs)}. Fly to this star system.")"
+                               @onclick="() => EnterSystemAsync(s.Repo)" @onkeydown="e => KeyAsync(e, () => EnterSystemAsync(s.Repo))">
+                                <ellipse class="hit" cx="@F(s.X)" cy="@F(s.Y)" rx="@F(s.Reach + 4 * Px)" ry="@F(s.Reach * s.K + 6 * Px)" fill="transparent" />
+                                <g pointer-events="none">
+                                    @foreach (var ring in s.Rings)
                                     {
-                                        var a = m / (double)p.Moons * Math.PI * 2;
-                                        <circle cx="@F(Math.Cos(a) * (p.R + 8))" cy="@F(Math.Sin(a) * (p.R + 8))" r="2.3" fill="var(--silver)" />
+                                        <ellipse cx="@F(ring.Cx)" cy="@F(ring.Cy)" rx="@F(ring.Rx)" ry="@F(ring.Ry)" fill="none" stroke="var(--border)" stroke-width="@F(.9 * Px)" opacity=".75" />
+                                    }
+                                    @for (var i = 3; i >= 1; i--)
+                                    {
+                                        <circle cx="@F(s.X)" cy="@F(s.Y)" r="@F(s.StarR + i * 4 * Px / 1.2)" fill="@s.Fill" opacity=".08" />
+                                    }
+                                    <circle class="core" cx="@F(s.X)" cy="@F(s.Y)" r="@F(s.StarR)" fill="@s.Fill" />
+                                    @foreach (var p in s.Planets)
+                                    {
+                                        var hot = p.Hood.Prs > 0;
+                                        <g @key="@($"sky-{p.Hood.Key}")" class="orb" data-key="@($"sky-{p.Hood.Key}")" data-cx="@F(p.Orbit.Cx)" data-cy="@F(p.Orbit.Cy)" data-rx="@F(p.Orbit.Rx)"
+                                           data-k="@F(p.Orbit.K)" data-angle="@p.Orbit.Angle.ToString("0.####", CultureInfo.InvariantCulture)" data-speed="@p.Orbit.Speed.ToString("0.#####", CultureInfo.InvariantCulture)"
+                                           transform="@($"translate({F(p.Orbit.X)},{F(p.Orbit.Y)})")">
+                                            <circle r="@F(p.R)" fill="@(hot ? "url(#planet-hot)" : "url(#planet-cold)")" />
+                                            @if (p.Ring)
+                                            {
+                                                <ellipse rx="@F(p.R * 1.8)" ry="@F(p.R * .45)" fill="none" stroke="var(--gold)" stroke-width="@F(.9 * Px)" opacity=".9" />
+                                            }
+                                            @if (p.Moons > 0)
+                                            {
+                                                <g class="@(p.Ring ? "moons fast" : "moons")">
+                                                    @for (var m = 0; m < p.Moons; m++)
+                                                    {
+                                                        var a = m / (double)p.Moons * Math.PI * 2;
+                                                        <circle cx="@F(Math.Cos(a) * (p.R + 3 * Px))" cy="@F(Math.Sin(a) * (p.R + 3 * Px))" r="@F(1.1 * Px)" fill="var(--silver)" />
+                                                    }
+                                                </g>
+                                            }
+                                        </g>
                                     }
                                 </g>
+                            </g>
+                        }
+                        @* One name plate per system: the repo name and its pull requests, drawn in screen pixels and cut to fit. *@
+                        @foreach (var s in _systems)
+                        {
+                            <g @key="@($"plate-{s.Repo.Name}")" class="@($"fit mm-hot{LensRepoClass(s.Repo.Name)}")" data-prio="@F(1000 + s.Reach)" data-maxu="@F(s.PlateW)" data-maxpx="@StarPlatePx" data-pad="12"
+                               style="@($"transform: translate({F(s.X)}px, {F(s.PlateY)}px) scale(var(--u))")" aria-hidden="true"
+                               data-tip="@s.Repo.Name" data-tip-sub="@StarTip(s.Repo)" @onclick="() => EnterSystemAsync(s.Repo)">
+                                <rect class="plate" x="-60" y="0" width="120" height="42" rx="9" fill="var(--bg)" fill-opacity=".88" stroke="var(--border)" stroke-width="1" />
+                                <text y="18" text-anchor="middle" font-weight="600" font-size="15" fill="var(--fg)" data-full="@s.Repo.Name">@Fit.Cut(s.Repo.Name, 26)</text>
+                                <text y="35" text-anchor="middle" font-size="13" fill="var(--silver)" data-full="@(s.Repo.Prs > 0 ? Prs(s.Repo.Prs) : "Quiet this month")">@(s.Repo.Prs > 0 ? Prs(s.Repo.Prs) : "Quiet this month")</text>
+                            </g>
+                        }
+                        @* Lens matches and conflict-risk PRs per system, as count badges beside the star (screen pixels). *@
+                        @foreach (var s in _systems)
+                        {
+                            var hits = LensCount(s.Repo.Name);
+                            var risk = ConflictsShown ? ConflictCount(s.Repo.Name) : 0;
+                            @if (hits > 0)
+                            {
+                                <g class="mm-badge" pointer-events="none" aria-hidden="true"
+                                   style="@($"transform: translate({F(s.X + s.StarR + 6 * Px)}px, {F(s.Y - s.StarR - 6 * Px)}px) scale(var(--u))")">
+                                    <circle r="12" stroke-width="2" />
+                                    <text y="4.5" text-anchor="middle" font-size="13">@hits</text>
+                                </g>
                             }
-                            <title>@($"{p.Hood.Label}: {p.Hood.Prs} pull requests")</title>
-                        </g>
-                        <text class="lab" style="@LabelStyle" y="@F(-p.R - (p.Moons > 0 ? 13 : 6))" text-anchor="middle" font-size="11"
-                              fill="@(hot ? "var(--fg)" : "var(--muted)")" pointer-events="none" paint-order="stroke" stroke="var(--card)" stroke-width="3">@p.Hood.Label</text>
+                            @if (risk > 0)
+                            {
+                                <g class="mm-badge mm-badge-conflict" pointer-events="none" aria-hidden="true"
+                                   style="@($"transform: translate({F(s.X - s.StarR - 6 * Px)}px, {F(s.Y - s.StarR - 6 * Px)}px) scale(var(--u))")">
+                                    <circle r="12" stroke-width="2" />
+                                    <text y="4.5" text-anchor="middle" font-size="13">@risk</text>
+                                </g>
+                            }
+                        }
                     </g>
                 }
-
-                @if (CurrentHood is not null && Rooms.Count > 0)
+                else if (Level == 1 && SystemRepo is { } sys)
                 {
-                    var cx = Rooms.Average(r => r.X);
-                    var cy = Rooms.Average(r => r.Y);
-                    <ellipse cx="@F(cx)" cy="@F(cy)" rx="66" ry="42" fill="var(--bg)" opacity=".92" stroke="var(--border)" stroke-width=".4" />
+                    var (cx, cy) = Centre;
+                    var sr = SystemStarR;
+                    var fill = sys.Name == MapData.MudBlazorRepo ? "var(--gold)" : sys.Prs > 0 ? "var(--purple)" : "var(--silver)";
+                    var conflicts = ConflictsShown ? ConflictRooms(sys.Name) : [];
+                    <g class="cam" data-level="1">
+                    <g pointer-events="none">
+                        @foreach (var ring in _rings)
+                        {
+                            <ellipse class="orbit" cx="@F(ring.Cx)" cy="@F(ring.Cy)" rx="@F(ring.Rx)" ry="@F(ring.Ry)" fill="none" stroke="var(--border)" stroke-width="@F(Px)" stroke-dasharray="@($"{F(2 * Px)} {F(6 * Px)}")" />
+                        }
+                    </g>
+                    @* The star is the system itself (the outer node): it opens the repo sheet but does not grow on hover. *@
+                    <g class="body mm-hot" tabindex="0" role="button" data-tip="@sys.Name" data-tip-sub="@StarTip(sys)"
+                       aria-label="@($"{sys.Name}: {Prs(sys.Prs)}. Show details.")"
+                       @onclick="() => OpenRepo(sys)" @onkeydown="e => KeyAsync(e, () => { OpenRepo(sys); return Task.CompletedTask; })">
+                        @for (var i = 5; i >= 1; i--)
+                        {
+                            <circle cx="@F(cx)" cy="@F(cy)" r="@F(sr + i * 9 * Px / 1.2)" fill="@fill" opacity=".06" />
+                        }
+                        <circle class="corona" cx="@F(cx)" cy="@F(cy)" r="@F(sr * 1.25)" fill="@fill" opacity=".18" />
+                        <circle cx="@F(cx)" cy="@F(cy)" r="@F(sr)" fill="@fill" />
+                    </g>
+                    @foreach (var p in _planets)
+                    {
+                        var hot = p.Hood.Prs > 0;
+                        <g @key="p.Hood.Key" class="orb" data-key="@p.Hood.Key" data-cx="@F(p.Orbit.Cx)" data-cy="@F(p.Orbit.Cy)" data-rx="@F(p.Orbit.Rx)"
+                           data-k="@F(p.Orbit.K)" data-angle="@p.Orbit.Angle.ToString("0.####", CultureInfo.InvariantCulture)" data-speed="@p.Orbit.Speed.ToString("0.#####", CultureInfo.InvariantCulture)"
+                           transform="@($"translate({F(p.Orbit.X)},{F(p.Orbit.Y)})")">
+                            <g class="@($"area mm-hot mm-pop{LensClass(p.Hood)}")" tabindex="0" role="button"
+                               data-tip="@p.Hood.Label" data-tip-sub="@HoodTip(p.Hood)"
+                               aria-label="@($"{p.Hood.Label} in {p.Hood.Repo}, {Prs(p.Hood.Prs)}. Fly in.")"
+                               @onclick="() => EnterPlanetAsync(p.Hood)" @onkeydown="e => KeyAsync(e, () => EnterPlanetAsync(p.Hood))">
+                                <circle r="@F(p.R + 8 * Px)" fill="transparent" />
+                                <circle r="@F(p.R)" fill="@(hot ? "url(#planet-hot)" : "url(#planet-cold)")" stroke="var(--card)" stroke-width="@F(Px)" />
+                                @if (p.Ring)
+                                {
+                                    <ellipse rx="@F(p.R * 1.8)" ry="@F(p.R * .45)" fill="none" stroke="var(--gold)" stroke-width="@F(1.6 * Px)" opacity=".9" />
+                                }
+                                @if (p.Moons > 0)
+                                {
+                                    <g class="@(p.Ring ? "moons fast" : "moons")">
+                                        @for (var m = 0; m < p.Moons; m++)
+                                        {
+                                            var a = m / (double)p.Moons * Math.PI * 2;
+                                            <circle cx="@F(Math.Cos(a) * (p.R + 6 * Px))" cy="@F(Math.Sin(a) * (p.R + 6 * Px))" r="@F(1.9 * Px)" fill="var(--silver)" />
+                                        }
+                                    </g>
+                                }
+                            </g>
+                            @if (conflicts.Count > 0 && PlanetConflict(p.Hood, conflicts) is { } shared)
+                            {
+                                @* A planet holding rooms open PRs share: ringed, with the PRs that collide there. *@
+                                <g pointer-events="none" aria-hidden="true">
+                                    <circle class="mm-conflict-ring" r="@F(p.R + 10 * Px)" stroke-width="@F(1.6 * Px)" stroke-dasharray="@($"{F(5 * Px)} {F(4 * Px)}")" />
+                                    <text class="mm-conflict-label" y="@F(-(p.R + 14 * Px))" text-anchor="middle" font-size="@F(12 * Px)" stroke-width="@F(3 * Px)">@shared</text>
+                                </g>
+                            }
+                        </g>
+                    }
+                    @* Planet names in their own layer above every planet; the orbit loop moves each with its planet. *@
+                    @foreach (var p in _planets)
+                    {
+                        var hot = p.Hood.Prs > 0;
+                        var below = p.R + (p.Moons > 0 ? 9 : 4) * Px;
+                        <g @key="@($"lab-{p.Hood.Key}")" class="orb-lab" data-key="@p.Hood.Key" transform="@($"translate({F(p.Orbit.X)},{F(p.Orbit.Y)})")">
+                            <g class="fit mm-hot" data-prio="@F(100 + Math.Sqrt(p.Hood.Size) + (hot ? 60 : 0))" data-maxpx="@PlanetPlatePx" data-pad="8" data-below="@F(below)" aria-hidden="true"
+                               data-tip="@p.Hood.Label" data-tip-sub="@HoodTip(p.Hood)" @onclick="() => EnterPlanetAsync(p.Hood)"
+                               style="@($"transform: translate(0px, {F(below)}px) scale(var(--u))")">
+                                <rect class="plate" x="-40" y="0" width="80" height="22" rx="6" fill="var(--bg)" fill-opacity=".8" />
+                                <text y="15.5" text-anchor="middle" font-size="13" font-weight="@(hot ? 500 : 400)" fill="@(hot ? "var(--fg)" : "var(--silver)")"
+                                      data-full="@p.Hood.Label">@Fit.Cut(p.Hood.Label, 22)</text>
+                            </g>
+                        </g>
+                    }
+                    </g>
+                    <DockPlate X="cx" Y="@(PlateBand * .97)" BodyTop="@(cy - sr * 1.25)" Name="@sys.Name" MaxPx="@(_portrait ? 300 : 380)" />
+                }
+                else if (Level == 2 && CurrentHood is { } hood)
+                {
+                    var (cx, cy) = Centre;
+                    var pr = PlanetBodyR;
+                    var hotPlanet = hood.Prs > 0;
+                    var moons = Math.Min(8, (int)Math.Ceiling(hood.Prs / 4.0));
+                    var roomConflicts = ConflictsShown ? ConflictRooms(hood.Repo).Where(c => Rooms.Any(r => r.Cluster.Id == c.RoomId)).ToDictionary(c => c.RoomId) : [];
+                    <g class="cam" data-level="2">
+                    <g pointer-events="none">
+                        @foreach (var ring in _satRings)
+                        {
+                            <ellipse class="orbit" cx="@F(ring.Cx)" cy="@F(ring.Cy)" rx="@F(ring.Rx)" ry="@F(ring.Ry)" fill="none" stroke="var(--border)" stroke-width="@F(Px)" stroke-dasharray="@($"{F(2 * Px)} {F(6 * Px)}")" />
+                        }
+                    </g>
+                    @* The planet is the area itself (the outer node): it names the area but does not grow on hover; its satellites do. *@
+                    <g class="body" data-tip="@($"{hood.Repo} › {hood.Label}")" data-tip-sub="@HoodTip(hood)">
+                        <circle cx="@F(cx)" cy="@F(cy)" r="@F(pr * 1.18)" fill="@(hotPlanet ? "var(--gold)" : "var(--cold)")" opacity=".08" />
+                        <circle cx="@F(cx)" cy="@F(cy)" r="@F(pr)" fill="@(hotPlanet ? "url(#planet-hot)" : "url(#planet-cold)")" />
+                        @if (hood.Prs >= 20)
+                        {
+                            <ellipse cx="@F(cx)" cy="@F(cy)" rx="@F(pr * 1.75)" ry="@F(pr * .42)" fill="none" stroke="var(--gold)" stroke-width="@F(2.4 * Px)" opacity=".85" />
+                        }
+                        @if (moons > 0)
+                        {
+                            <g class="@(hood.Prs >= 20 ? "moons fast" : "moons")" style="@($"transform-origin:{F(cx)}px {F(cy)}px")">
+                                @for (var m = 0; m < moons; m++)
+                                {
+                                    var a = m / (double)moons * Math.PI * 2;
+                                    <circle cx="@F(cx + Math.Cos(a) * (pr + 16 * Px))" cy="@F(cy + Math.Sin(a) * (pr + 16 * Px))" r="@F(3 * Px)" fill="var(--silver)" />
+                                }
+                            </g>
+                        }
+                    </g>
                     @foreach (var room in Rooms)
                     {
                         var hot = room.Cluster.Prs > 0;
-                        <g class="mm-hot" tabindex="0" role="button" aria-label="@($"{room.FullName}, {room.Cluster.N} code items, {room.Cluster.Prs} pull requests")"
-                           @onclick="() => OpenRoom(room)" @onkeydown="e => KeyAsync(e, () => { OpenRoom(room); return Task.CompletedTask; })">
-                            <circle cx="@F(room.X)" cy="@F(room.Y)" r="@F(room.R * .8)" fill="@(hot ? "var(--gold)" : "var(--cold)")"
-                                    stroke="@(CurrentRoom == room.Cluster ? "var(--fg)" : "none")" stroke-width=".4" />
-                            <text x="@F(room.X)" y="@F(room.Y + room.R * .8 + room.FontSize)" text-anchor="middle" font-size="@F(room.FontSize * .85)"
-                                  fill="@(hot ? "var(--fg)" : "var(--muted)")">@room.Name</text>
-                            <title>@room.FullName</title>
+                        var o = SatOrbit(room);
+                        <g @key="room.Cluster.Id" class="orb" data-key="@room.Cluster.Id" data-cx="@F(o.Cx)" data-cy="@F(o.Cy)" data-rx="@F(o.Rx)" data-k="@F(o.K)"
+                           data-angle="@o.Angle.ToString("0.####", CultureInfo.InvariantCulture)" data-speed="@o.Speed.ToString("0.#####", CultureInfo.InvariantCulture)"
+                           transform="@($"translate({F(o.X)},{F(o.Y)})")">
+                            <g class="@($"mm-hot mm-pop{LensClass(room.Cluster)}")" tabindex="0" role="button" aria-label="@($"{room.FullName}, {room.Cluster.N} code items, {Prs(room.Cluster.Prs)}")"
+                               data-tip="@room.FullName" data-tip-sub="@($"{room.Cluster.Prs} pull requests this month · {room.Cluster.N} code items")"
+                               @onclick="() => OpenRoom(room)" @onkeydown="e => KeyAsync(e, () => { OpenRoom(room); return Task.CompletedTask; })">
+                                <circle r="@F(room.R + 8 * Px)" fill="transparent" />
+                                <circle r="@F(room.R)" fill="@(hot ? "url(#planet-hot)" : "url(#planet-cold)")"
+                                        stroke="@(CurrentRoom == room.Cluster ? "var(--fg)" : "var(--card)")" stroke-width="@F((CurrentRoom == room.Cluster ? 2 : 1) * Px)" />
+                            </g>
+                            @if (roomConflicts.TryGetValue(room.Cluster.Id, out var clash))
+                            {
+                                <g pointer-events="none" aria-hidden="true">
+                                    <circle class="mm-conflict-ring" r="@F(room.R + 7 * Px)" stroke-width="@F(2 * Px)" stroke-dasharray="@($"{F(5 * Px)} {F(4 * Px)}")" />
+                                    <text class="mm-conflict-label" y="@F(-(room.R + 11 * Px))" text-anchor="middle" font-size="@F(12 * Px)" stroke-width="@F(3 * Px)">@($"{room.Name}: {clash.Label}")</text>
+                                </g>
+                            }
                         </g>
                     }
+                    @foreach (var room in Rooms)
+                    {
+                        var hot = room.Cluster.Prs > 0;
+                        var o = SatOrbit(room);
+                        <g @key="@($"lab-{room.Cluster.Id}")" class="orb-lab" data-key="@room.Cluster.Id" transform="@($"translate({F(o.X)},{F(o.Y)})")">
+                            <g class="fit mm-hot" data-prio="@F(10 + room.R + (hot ? 40 : 0) + (CurrentRoom == room.Cluster ? 400 : 0))" data-maxpx="@SatellitePlatePx" data-pad="8" data-below="@F(room.R + 4 * Px)" aria-hidden="true"
+                               data-tip="@room.FullName" data-tip-sub="@($"{room.Cluster.Prs} pull requests this month · {room.Cluster.N} code items")"
+                               @onclick="() => OpenRoom(room)" style="@($"transform: translate(0px, {F(room.R + 4 * Px)}px) scale(var(--u))")">
+                                <rect class="plate" x="-40" y="0" width="80" height="22" rx="6" fill="var(--bg)" fill-opacity=".8" />
+                                <text y="15.5" text-anchor="middle" font-size="13" fill="@(hot ? "var(--fg)" : "var(--silver)")" data-full="@room.Name">@Fit.Cut(room.Name, 22)</text>
+                            </g>
+                        </g>
+                    }
+                    @if (roomConflicts.Count > 0)
+                    {
+                        @* One pin per PR in conflict, in a column at the left of the view where no satellite passes, joined to its
+                           shared satellites by dashed lines that stars.js keeps on the moving satellites. *@
+                        var pins = ConflictPins(hood.Repo).Where(p => p.Rooms.Any(roomConflicts.ContainsKey)).ToList();
+                        var spots = pins.Select((p, i) => (ViewWidth * .05 + 34 * Px, ViewHeight * .2 + i * 30 * Px)).ToList();
+                        <g class="mm-pins" pointer-events="none" aria-hidden="true">
+                            @for (var i = 0; i < pins.Count; i++)
+                            {
+                                var (px, py) = spots[i];
+                                foreach (var roomId in pins[i].Rooms.Where(roomConflicts.ContainsKey))
+                                {
+                                    <line class="mm-conflict-line" data-orb="@roomId" x1="@F(px)" y1="@F(py)" x2="@F(px)" y2="@F(py)" stroke-width="@F(1.6 * Px)" stroke-dasharray="@($"{F(6 * Px)} {F(5 * Px)}")" />
+                                }
+                            }
+                            @for (var i = 0; i < pins.Count; i++)
+                            {
+                                var (px, py) = spots[i];
+                                <g class="mm-pin" transform="@($"translate({F(px)},{F(py)})")">
+                                    <rect x="@F(-30 * Px)" y="@F(-11 * Px)" width="@F(60 * Px)" height="@F(22 * Px)" rx="@F(11 * Px)" stroke-width="@F(1.6 * Px)" />
+                                    <text y="@F(4.5 * Px)" text-anchor="middle" font-size="@F(13 * Px)">#@pins[i].Number</text>
+                                </g>
+                            }
+                        </g>
+                    }
+                    </g>
+                    <DockPlate X="cx" Y="@(PlateBand * .97)" BodyTop="@(cy - pr * 1.18)" Name="@hood.Label" MaxPx="@(_portrait ? 300 : 380)" />
                 }
             </svg>
-        </div>
+        </MudPaper>
         <MapControls IncludeTests="IncludeTests" IncludeTestsChanged="SetIncludeTestsAsync" Available="TestsKnown" TestItems="TestItems" />
-        <MapSheet Room="CurrentRoom" Repo="CurrentRepo" RoomRepo="RepoOf(CurrentRoom)" WindowDays="Data.WindowDays" OnClose="CloseDetails" />
+        <MapSheet Room="CurrentRoom" Repo="CurrentRepo" RoomRepo="RepoOf(CurrentRoom)" WindowDays="Data.WindowDays" OnClose="CloseDetails" Research />
 
         <MudText Typo="Typo.body2" Class="mm-note mud-text-secondary">
-            Each star is a repo and each planet a part of its code, sized by how much lives there. Gold planets had pull requests in the last
-            @Data.WindowDays days; moons circle them, and the busiest wear rings. Click a planet to fly in and see its satellites, the rooms of its code;
-            click one for its code, or a star for its repo.
+            Each star system is a repo: its planets are the parts of its code, sized by how much lives there. Gold planets had pull
+            requests in the last @Data.WindowDays days; moons circle them, and the busiest wear rings. Click a system to fly to it and
+            see its planets by name, click a planet to see its satellites (the rooms of its code), and click a satellite for its
+            details. Click empty sky to fly back out one level.
         </MudText>
+        <MapFooter RepoList="Data.Repos" GeneratedAt="@Data.GeneratedAt" Research />
+        <ResearchDrawer />
+        <PrBoard />
     }
-</div>
+</MudContainer>

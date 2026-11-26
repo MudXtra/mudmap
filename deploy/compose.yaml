@@ -1,0 +1,54 @@
+# Mud Maps with the graphify MCP child in the same container.
+# Dedicated project: always `docker compose -p mudmaps -f <stack-dir>/compose.yaml ...`
+# Host-specific values come from a .env file next to this file (no defaults, so a missing one fails loudly):
+#   MUDMAPS_STACK_DIR   folder holding state/ and secrets/github-token
+#   MUDMAPS_REPOS_DIR   read-only checkout of the mapped repositories
+#   MUDMAPS_BIND_ADDR   host address the port is published on
+name: mudmaps
+services:
+  mudmaps:
+    image: mudmaps:__TAG__
+    init: true
+    container_name: mudmaps
+    restart: unless-stopped
+    read_only: true
+    user: "1654:1654"
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    tmpfs:
+      - /tmp:size=128m,mode=1777,noexec,nosuid,nodev
+    pids_limit: 256
+    mem_limit: 3g
+    memswap_limit: 3g
+    oom_score_adj: 500
+    environment:
+      Maps__FrameAncestors__0: https://ai.coderproject.org
+      Maps__FrameAncestors__1: https://ai.arctechonline.tech
+      Maps__GitHubTokenFile: /run/secrets/github-token
+      DOTNET_GCHeapHardLimit: "0x30000000"
+      Maps__Research__Enabled: "true"
+      Maps__Research__MergedGraph: /data/InternalRepos/_merged/mud/graph.json
+      Maps__Research__MaxContexts: "3"
+      Usage__StateFile: /var/lib/mudmaps/stats.json
+    volumes:
+      - type: bind
+        source: ${MUDMAPS_REPOS_DIR:?set in .env}
+        target: /data/InternalRepos
+        read_only: true
+      # The one writable path the usage counters need; everything else stays read-only.
+      # On the host: mkdir -p $MUDMAPS_STACK_DIR/state && chown 1654:1654 $MUDMAPS_STACK_DIR/state
+      - type: bind
+        source: ${MUDMAPS_STACK_DIR:?set in .env}/state
+        target: /var/lib/mudmaps
+    secrets: [github-token]
+    ports:
+      - "${MUDMAPS_BIND_ADDR:?set in .env}:8840:8080"
+    networks: [mudmaps]
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+secrets:
+  github-token:
+    file: ${MUDMAPS_STACK_DIR:?set in .env}/secrets/github-token
+networks:
+  mudmaps: {}

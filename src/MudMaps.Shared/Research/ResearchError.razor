@@ -1,0 +1,46 @@
+@implements IDisposable
+@* A research call that failed. When the service asked to wait (429, 503) it counts down and then offers to try again. *@
+<MudAlert Severity="@(_left > 0 ? Severity.Warning : Severity.Error)" Dense Variant="Variant.Outlined" Class="@Class" role="alert">
+    <MudStack Row AlignItems="AlignItems.Center" Spacing="2" Wrap="Wrap.Wrap">
+        <MudText Typo="Typo.body2">@Error @(_left > 0 ? $"Try again in {_left} s." : null)</MudText>
+        @if (OnRetry.HasDelegate)
+        {
+            <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Primary" Disabled="_left > 0" OnClick="OnRetry">Try again</MudButton>
+        }
+    </MudStack>
+</MudAlert>
+
+@code {
+    [Parameter, EditorRequired] public string Error { get; set; } = "";
+    /// <summary>Seconds the service asked to wait, from its Retry-After header.</summary>
+    [Parameter] public int? RetryAfter { get; set; }
+    [Parameter] public EventCallback OnRetry { get; set; }
+    [Parameter] public string? Class { get; set; }
+
+    private int _left;
+    private int? _started;
+    private string? _for;
+    private PeriodicTimer? _timer;
+
+    protected override void OnParametersSet()
+    {
+        if (RetryAfter == _started && Error == _for) return;
+        _started = RetryAfter;
+        _for = Error;
+        _left = Math.Max(0, RetryAfter ?? 0);
+        _timer?.Dispose();
+        _timer = null;
+        if (_left > 0) _ = CountDownAsync(_timer = new PeriodicTimer(TimeSpan.FromSeconds(1)));
+    }
+
+    private async Task CountDownAsync(PeriodicTimer timer)
+    {
+        while (_left > 0 && await timer.WaitForNextTickAsync())
+        {
+            _left--;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    public void Dispose() => _timer?.Dispose();
+}

@@ -1,5 +1,6 @@
 /* Retro print: two inks on warm stock, no gradients, no blurred shadows. */
-:root { --paper: #F4EDDE; --paper-2: #EBE2CF; --ink: #21201C; --red: #E4572E; --blue: #355E8C; }
+/* --red-ink is the riso red darkened for text: 5.6:1 on the paper (the plain red is 3:1, fine for flags, not for words). */
+:root { --paper: #F4EDDE; --paper-2: #EBE2CF; --ink: #21201C; --red: #E4572E; --red-ink: #A3321A; --blue: #355E8C; }
 html { scrollbar-color: var(--ink) var(--paper); }
 .mm-loading { color: var(--ink); padding: 48px; font-family: "IBM Plex Mono", monospace; text-transform: uppercase; letter-spacing: .1em; font-size: 12px; }
 .mm-title { text-shadow: 3px 3px 0 var(--blue); }
@@ -7,8 +8,31 @@ html { scrollbar-color: var(--ink) var(--paper); }
 .mm-stage { border: 2px solid var(--ink); border-radius: 0; background: var(--paper); }
 .mm-panel { border: 2px solid var(--ink) !important; box-shadow: 5px 5px 0 var(--ink) !important; border-radius: 0 !important; }
 .mm-trail .mud-button-root { border-radius: 0 !important; }
-.mm-stamp { display: inline-block; font: 500 11px "IBM Plex Mono", monospace; letter-spacing: .1em; text-transform: uppercase; color: var(--red);
+.mm-stamp { display: inline-block; font: 500 13px "IBM Plex Mono", monospace; letter-spacing: .02em; color: var(--red-ink);
   border: 1.5px dashed var(--ink); border-radius: 999px; padding: 4px 12px; rotate: -2deg; margin-top: 24px; }
-.mm-colophon { display: flex; justify-content: space-between; font: 500 11px "IBM Plex Mono", monospace; letter-spacing: .1em; text-transform: uppercase; padding-top: 12px; }
+.mm-colophon { display: flex; flex-wrap: wrap; gap: 4px 24px; justify-content: space-between; font: 500 13px "IBM Plex Mono", monospace; letter-spacing: .02em; color: var(--ink); padding-top: 12px; }
 svg .lab, svg .area { transition: opacity 300ms ease-out; }
 @media (prefers-reduced-motion: reduce) { svg .lab, svg .area { transition: none; } }
+/* Alive: the sea rolls, the compass needle settles, flags flutter. */
+.wave { animation: mm-wave 14s linear infinite; }
+@keyframes mm-wave { to { transform: translateX(100px); } }
+.compass-needle { animation: mm-needle 9s ease-in-out infinite; }
+@keyframes mm-needle { 25% { rotate: 6deg; } 75% { rotate: -4deg; } }
+.flag path { transform-box: fill-box; transform-origin: left center; animation: mm-flutter 2.4s ease-in-out infinite; }
+@keyframes mm-flutter { 50% { transform: scaleX(.8) skewY(4deg); } }
+.harbour .beam { animation: mm-beam 3.2s ease-in-out infinite; }
+@keyframes mm-beam { 50% { opacity: .25; } }
+/* Island names: hover darkens the name to the sea blue so it reads as a link. */
+svg .tag text { transition: fill .15s ease; }
+svg .tag:hover text, svg .tag:focus-visible text { fill: var(--blue); }
+@media (prefers-reduced-motion: reduce) { .wave, .compass-needle, .flag path, .harbour .beam { animation: none; } }
+/* The sailing ship lives in its own SVG over the chart. */
+.mm-stage > svg.sail { position: absolute; left: 0; top: 0; width: 100%; height: 100%; pointer-events: none; }
+/* On phones the long title must not break inside a word. */
+@media (max-width: 480px) { .mm-title { font-size: 15vw !important; } }
+/* A ship at her mooring rides the swell. */
+.mm-stage > svg.sail .ship.at-rest .bob { animation: mm-moored 3.4s ease-in-out infinite; transform-box: fill-box; transform-origin: center bottom; }
+@keyframes mm-moored { 50% { transform: translateY(1.5px) rotate(-1.5deg); } }
+@media (prefers-reduced-motion: reduce) { .mm-stage > svg.sail .ship.at-rest .bob { animation: none; } }
+/* While the voyage camera is close in, the chart's own names step aside for the ship and the dock board. */
+.mm-stage > svg.near .lab { opacity: 0 !important; }

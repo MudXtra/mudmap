@@ -1,0 +1,16 @@
+<Project>
+  <!-- Stamps the content hash of the shared stylesheet into the app's index.html (mudmaps.css?v=<hash>), the way the
+       zoom module is versioned: a new stylesheet always has a new URL, so a browser's cached older copy is never used.
+       Import this from an app's project file; it rewrites wwwroot/index.html only when the hash changed. -->
+  <Target Name="StampSharedCss" BeforeTargets="BeforeBuild;ResolveStaticWebAssetsInputs">
+    <PropertyGroup>
+      <_MmCssPath>$(MSBuildThisFileDirectory)wwwroot/mudmaps.css</_MmCssPath>
+      <_MmIndexPath>$(MSBuildProjectDirectory)/wwwroot/index.html</_MmIndexPath>
+      <_MmCssVersion>$([System.Math]::Abs($([MSBuild]::StableStringHash($([System.IO.File]::ReadAllText($(_MmCssPath)))))))</_MmCssVersion>
+      <_MmIndexOld>$([System.IO.File]::ReadAllText($(_MmIndexPath)))</_MmIndexOld>
+      <_MmIndexNew>$([System.Text.RegularExpressions.Regex]::Replace($(_MmIndexOld), 'mudmaps\.css(\?v=[-0-9A-Za-z]*)?', 'mudmaps.css?v=$(_MmCssVersion)'))</_MmIndexNew>
+      <_MmIndexLine>$(_MmIndexNew.TrimEnd().Replace('%', '%25').Replace(';', '%3B'))</_MmIndexLine>
+    </PropertyGroup>
+    <WriteLinesToFile Condition="'$(_MmIndexNew.TrimEnd())' != '$(_MmIndexOld.TrimEnd())'" File="$(_MmIndexPath)" Lines="$(_MmIndexLine)" Overwrite="true" />
+  </Target>
+</Project>

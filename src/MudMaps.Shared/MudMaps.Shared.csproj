@@ -7,6 +7,12 @@
   </PropertyGroup>
 
 
+  <!-- A version for the shared script, from its content: pages import zoom.js?v=<this>, so a browser holding an old
+       cached zoom.js never pairs it with a new app (see SharedAssets). -->
+  <ItemGroup>
+    <AssemblyMetadata Include="MudMaps.ZoomJsVersion" Value="$([MSBuild]::StableStringHash($([System.IO.File]::ReadAllText('$(MSBuildThisFileDirectory)wwwroot/zoom.js'))))" />
+  </ItemGroup>
+
   <ItemGroup>
     <SupportedPlatform Include="browser" />
   </ItemGroup>

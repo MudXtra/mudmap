@@ -62,5 +62,42 @@ public sealed partial class SecurityHeaders(IReadOnlyDictionary<string, string> 
         h["Cross-Origin-Opener-Policy"] = "same-origin";
         h["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()";
         h.ContentSecurityPolicy = CspFor(ctx.Request.Path.Value?.Split('/', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault());
+        ApplyCacheControl(ctx);
     }
+
+    /// <summary>
+    /// Successful static and HTML responses: <c>no-cache</c> (revalidate every time) unless the file is fingerprinted,
+    /// which may then be cached for a year. Set when the response starts so errors and redirects are never marked immutable.
+    /// The map JSON sets its own <c>no-cache</c> with an ETag.
+    /// </summary>
+    private static void ApplyCacheControl(HttpContext ctx)
+    {
+        var path = ctx.Request.Path.Value ?? "";
+        ctx.Response.OnStarting(() =>
+        {
+            var response = ctx.Response;
+            if (response.Headers.CacheControl.Count == 0)
+            {
+                response.Headers.CacheControl = IsFingerprinted(path) && response.StatusCode is 200 or 206 or 304
+                    ? "public, max-age=31536000, immutable"
+                    : "no-cache";
+            }
+            return Task.CompletedTask;
+        });
+    }
+
+    /// <summary>
+    /// True for anything under <c>_framework/</c> and for scripts or stylesheets whose name carries a build fingerprint,
+    /// such as <c>city.l5utpqx140.js</c> (ten lower-case letters or digits before the extension).
+    /// <c>zoom.js</c>, <c>mudmaps.css</c> and <c>MudBlazor.min.css</c> are not fingerprinted and are revalidated instead.
+    /// </summary>
+    internal static bool IsFingerprinted(string path)
+    {
+        var segments = path.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        if (segments.Any(s => s.Equals("_framework", StringComparison.OrdinalIgnoreCase))) return true;
+        return segments.Length > 0 && FingerprintedAsset().IsMatch(segments[^1]);
+    }
+
+    [GeneratedRegex(@"\.[a-z0-9]{10}\.(js|mjs|css)$", RegexOptions.IgnoreCase)]
+    private static partial Regex FingerprintedAsset();
 }

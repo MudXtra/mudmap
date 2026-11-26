@@ -1,12 +1,12 @@
 @* A name that may not fit: cut with an ellipsis, full name in a tooltip on hover or focus. *@
 @if (Text.Length <= Max)
 {
-    <span class="mm-fit @Class">@Text</span>
+    <MudText Typo="Typo.inherit" HtmlTag="span" Class="@($"mm-fit {Class}")">@Text</MudText>
 }
 else
 {
     <MudTooltip Text="@Text" Arrow Placement="Placement.Top" Inline>
-        <span class="mm-fit @Class" tabindex="0" aria-label="@Text">@Cut(Text, Max)</span>
+        <MudText Typo="Typo.inherit" HtmlTag="span" Class="@($"mm-fit {Class}")" tabindex="0" aria-label="@Text">@Cut(Text, Max)</MudText>
     </MudTooltip>
 }
 

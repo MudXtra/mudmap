@@ -1,0 +1,54 @@
+@* The hero's navigation: the MCP link and the app switch.
+   Colony and Islands lack the Phase 2 additions, so the switch is a plain Space | City button group. The app
+   you are on is shown selected; the other is a link to it. Colony and Islands still pass their own name and are still
+   reachable by direct URL, but neither button is selected there and nothing in the UI links to them. *@
+@inject NavigationManager Nav
+@inject UsageTracker Usage
+
+<MudStack Row AlignItems="AlignItems.Center" Spacing="4" Wrap="Wrap.Wrap" Class="mm-nav">
+    @* The MCP link matches the switch beside it, so it is a one-button group with the same variant and
+       size, and the row reads as one strip of controls. *@
+    <MudButtonGroup Variant="Variant.Outlined" Size="Size.Small" Class="mm-nav-mcp">
+        <MudButton Href="connect" OnClick="@(() => Usage.Track(UsageEvents.McpChip))"
+                   aria-label="Connect to Mud Maps over MCP">MCP</MudButton>
+    </MudButtonGroup>
+
+    <MudButtonGroup Variant="Variant.Outlined" Size="Size.Small" Class="mm-nav-switch" role="group" aria-label="Mud Maps apps">
+        @foreach (var app in All)
+        {
+            var a = app;
+            if (a == Current)
+            {
+                @* The selection: a button, not a link, since it would only reload the page you are on. *@
+                <MudButton Class="mm-nav-on" aria-current="page" aria-label="@($"{Label(a)} (this app)")">@Label(a)</MudButton>
+            }
+            else
+            {
+                <MudButton Href="@UrlFor(a)" OnClick="@(() => Usage.Track(UsageEvents.Nav(a)))"
+                           aria-label="@($"Open Mud Maps {Label(a)}")">@Label(a)</MudButton>
+            }
+        }
+    </MudButtonGroup>
+</MudStack>
+
+@code {
+    /// <summary>The app rendering the nav: space, city, colony or islands. Each app passes its own name.</summary>
+    [Parameter] public string Current { get; set; } = "space";
+
+    /// <summary>The apps the switch offers, in order. The server's <c>AppPreference.Listed</c> must
+    /// match; a test holds the two together.</summary>
+    internal static readonly string[] All = ["space", "city"];
+
+    internal static string Label(string segment) => segment switch
+    {
+        "space" => "Space",
+        "city" => "City",
+        _ => segment,
+    };
+
+    /// <summary>
+    /// An app's URL. The apps sit side by side under one host (/space/, /city/, ...), so any of them is reached by going
+    /// up one level and back down into its segment.
+    /// </summary>
+    internal string UrlFor(string segment) => new Uri(new Uri(Nav.BaseUri), $"../{segment}/").ToString();
+}

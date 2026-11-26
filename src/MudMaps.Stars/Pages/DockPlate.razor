@@ -1,0 +1,27 @@
+@* Docking beacon / nav-marker plate for the body the view is docked at: it hangs in the band above the orbits, with a
+   pulsing light and a dashed beacon beam down to the body. The plate is drawn in screen pixels (scaled by --u) and its
+   name cut to fit, like every name plate on the map; on a narrow stage the script lowers it so it stays inside. *@
+<g class="dock" aria-hidden="true" pointer-events="none">
+    <line class="beacon-beam" x1="@F(X)" y1="@F(Y)" x2="@F(X)" y2="@F(BodyTop)" stroke="var(--gold)" stroke-width="1.5" stroke-dasharray="3 7" opacity=".55" vector-effect="non-scaling-stroke" />
+    <g class="fit dock-plate" data-prio="5000" data-maxpx="@MaxPx" data-minpx="150" data-pad="16" data-x="@F(X)" data-y="@F(Y)"
+       style="@($"transform: translate({F(X)}px, {F(Y)}px) scale(var(--u))")">
+        <circle class="beacon-glow" cx="0" cy="-8" r="9" fill="var(--gold)" />
+        <circle class="beacon-light" cx="0" cy="-8" r="4" fill="var(--gold)" />
+        <line x1="0" y1="-12" x2="0" y2="-20" stroke="var(--gold)" stroke-width="2" />
+        <rect class="plate" x="-75" y="-66" width="150" height="46" rx="10" fill="var(--bg)" fill-opacity=".92" stroke="var(--gold)" stroke-width="1.5" />
+        <text y="-48" text-anchor="middle" font-size="13" font-weight="500" fill="var(--gold)" data-full="Docked at">Docked at</text>
+        <text y="-29" text-anchor="middle" font-size="17" font-weight="600" fill="var(--fg)" data-full="@Name">@Name</text>
+    </g>
+</g>
+
+@code {
+    [Parameter, EditorRequired] public double X { get; set; }
+    /// <summary>Where the beacon light sits, at the foot of the plate.</summary>
+    [Parameter, EditorRequired] public double Y { get; set; }
+    /// <summary>Top of the docked body, where the beacon beam ends.</summary>
+    [Parameter, EditorRequired] public double BodyTop { get; set; }
+    [Parameter, EditorRequired] public string Name { get; set; } = "";
+    [Parameter] public int MaxPx { get; set; } = 380;
+
+    private static string F(double v) => v.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+}

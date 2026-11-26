@@ -1,0 +1,268 @@
+@implements IDisposable
+@inject ResearchState State
+@* The pull request review board: open PRs in columns (conflict risk, waiting on review, ready to merge, other), with its
+   own repo picker. "Follow map" makes the picker follow the repo the map is in. Hovering a card lights its rooms on the
+   map; clicking it opens its impact. While the board is open the map draws where open PRs collide. *@
+<MudDrawer Open="State.BoardOpen" OpenChanged="OpenChanged" Anchor="Anchor.End" Variant="DrawerVariant.Responsive" Breakpoint="Breakpoint.Md"
+           Width="var(--mm-drawer)" Elevation="2" ClipMode="DrawerClipMode.Never" Class="mm-drawer mm-board" aria-label="PR review board">
+    <MudStack Spacing="2" Class="pa-4 mm-drawer-body">
+        <MudStack Row AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+            <MudStack Spacing="0">
+                <MudText Typo="Typo.h6" Class="mm-sheet-heading">PR review board</MudText>
+                <MudText Typo="Typo.caption" Class="mm-quiet">@Caption</MudText>
+            </MudStack>
+            <MudIconButton Icon="@Icons.Material.Filled.Close" Size="Size.Small" aria-label="Close the review board" OnClick="() => State.Open(ResearchPanelKind.None)" />
+        </MudStack>
+
+        @if (_detail is null)
+        {
+            <MudSelect T="string" MultiSelection SelectedValues="Picked" SelectedValuesChanged="PickAsync" Label="Repos"
+                       Placeholder="All Mud repos" Variant="Variant.Outlined" Margin="Margin.Dense" Dense Clearable Disabled="_follow"
+                       MultiSelectionTextFunc="PickedText" HelperText="@(_follow ? "Following the map" : null)">
+                @foreach (var (name, full) in State.Repos)
+                {
+                    <MudSelectItem T="string" Value="@full">@name</MudSelectItem>
+                }
+            </MudSelect>
+            <MudStack Row Spacing="3" Wrap="Wrap.Wrap">
+                <MudSwitch T="bool" Value="_follow" ValueChanged="FollowAsync" Color="Color.Primary" Label="Follow map" />
+                <MudSwitch T="bool" Value="_actionable" ValueChanged="ActionableAsync" Color="Color.Primary" Label="Actionable only" />
+            </MudStack>
+            <PrPicker Value="null" ValueChanged="OpenDetailAsync" />
+
+            @if (_error is not null)
+            {
+                <ResearchError Error="@_error" RetryAfter="_retryAfter" OnRetry="LoadAsync" />
+            }
+            @if (_loading)
+            {
+                <MudProgressLinear Color="Color.Primary" Indeterminate />
+            }
+            @foreach (var (lane, prs) in _lanes)
+            {
+                <MudStack Spacing="1" Class="mm-lane" role="group" aria-label="@BoardGrouping.Title(lane)">
+                    <MudStack Row AlignItems="AlignItems.Center" Spacing="1">
+                        <MudIcon Icon="@Icons.Material.Filled.Circle" Size="Size.Small" Class="@($"mm-lane-dot mm-lane-{lane.ToString().ToLowerInvariant()}")" aria-hidden="true" />
+                        <MudText Typo="Typo.subtitle2">@BoardGrouping.Title(lane)</MudText>
+                        <MudText Typo="Typo.caption" Class="mm-quiet">@prs.Count</MudText>
+                    </MudStack>
+                    @foreach (var pr in prs)
+                    {
+                        var reason = BoardGrouping.ConflictReason(pr);
+                        <MudPaper Outlined Class="@($"mm-card mm-card-{lane.ToString().ToLowerInvariant()} pa-2 mm-hot")" tabindex="0" role="button"
+                                  aria-label="@($"#{pr.Number} {pr.Title}. Open its impact.")"
+                                  @onmouseenter="() => Point(pr)" @onmouseleave="() => Point(null)"
+                                  @onfocusin="() => Point(pr)" @onfocusout="() => Point(null)"
+                                  @onclick="() => OpenDetailAsync(pr)" @onkeydown="e => CardKeyAsync(e, pr)">
+                            <PrRow Pr="pr" RepoDisplay="@State.NameOf(pr.Repo)" />
+                            @if (reason is not null)
+                            {
+                                <MudText Typo="Typo.caption" Class="mm-conflict-reason">⚠ @reason</MudText>
+                            }
+                        </MudPaper>
+                    }
+                </MudStack>
+            }
+        }
+        else
+        {
+            var d = _detail;
+            <MudButton Variant="Variant.Text" StartIcon="@Icons.Material.Filled.ArrowBack" OnClick="CloseDetail" Class="align-self-start">Board</MudButton>
+            <MudPaper Outlined Class="pa-2"><PrRow Pr="d" RepoDisplay="@State.NameOf(d.Repo)" /></MudPaper>
+            @if (BoardGrouping.ConflictReason(d) is { } why)
+            {
+                <MudText Typo="Typo.body2" Class="mm-conflict-reason">⚠ @why</MudText>
+            }
+            <MudStack Row Spacing="1" Wrap="Wrap.Wrap">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="() => ShowAsync(d)" Disabled="@(d.RoomList.Count == 0)">Show on map</MudButton>
+                @if (ResearchLinks.Safe(d.Url) is { } url)
+                {
+                    <MudButton Variant="Variant.Outlined" Href="@url" Target="_blank" Rel="noopener noreferrer" EndIcon="@Icons.Material.Filled.OpenInNew">Open on GitHub</MudButton>
+                }
+                <MudButton Variant="Variant.Outlined" OnClick="() => State.OpenTab(ResearchDrawer.PrImpactTab, d)">PR impact</MudButton>
+            </MudStack>
+            @if (_detailError is not null)
+            {
+                <ResearchError Error="@_detailError" OnRetry="() => OpenDetailAsync(d)" />
+            }
+            <MudSimpleTable Dense Elevation="0" Class="mm-facts">
+                <tbody>
+                    <tr><td>Rooms touched</td><td>@RoomNames(d)</td></tr>
+                    <tr><td>Communities</td><td>@string.Join(", ", d.Communities ?? [])</td></tr>
+                    <tr><td>Code items</td><td>@d.Nodes</td></tr>
+                    <tr><td>Blast radius</td><td>@d.BlastRadius</td></tr>
+                    <tr><td>Base</td><td>@d.Base@(d.DefaultBase is { } db && db != d.Base ? $" (default {db})" : "")</td></tr>
+                </tbody>
+            </MudSimpleTable>
+            @if (d.Conflicts.Count > 0)
+            {
+                <MudText Typo="Typo.subtitle2">Changes the same files as</MudText>
+                <MudList T="string" Dense Class="py-0">
+                    @foreach (var c in d.Conflicts)
+                    {
+                        var other = State.Pr(d.Repo, c.Number);
+                        <MudListItem T="string" OnClick="() => OpenNumberAsync(d.Repo, c.Number)" Class="px-1">
+                            <MudText Typo="Typo.body2">#@c.Number @(other?.Title)</MudText>
+                            <MudText Typo="Typo.caption" Class="mm-quiet">@string.Join(", ", (c.Files ?? []).Select(f => f.Split('/')[^1]))</MudText>
+                        </MudListItem>
+                    }
+                </MudList>
+            }
+            @if (d.Files is { Count: > 0 } files)
+            {
+                <MudText Typo="Typo.subtitle2">Files (@d.FileCount)</MudText>
+                <MudList T="string" Dense Class="py-0">
+                    @foreach (var f in files)
+                    {
+                        <MudListItem T="string" Class="px-1"><MudText Typo="Typo.caption" Class="mm-code mm-fit">@f</MudText></MudListItem>
+                    }
+                </MudList>
+            }
+        }
+    </MudStack>
+</MudDrawer>
+
+@code {
+    private HashSet<string> _picked = [];
+    private bool _follow;
+    private bool _actionable;
+    private bool _loading;
+    private string? _error;
+    private int? _retryAfter;
+    private IReadOnlyList<(BoardLane Lane, IReadOnlyList<PrItem> Prs)> _lanes = [];
+    private PrItem? _detail;
+    private string? _detailError;
+    private string? _loadedKey;
+    private CancellationTokenSource? _cts;
+
+    private IReadOnlyCollection<string> Picked => _follow ? Effective : _picked;
+    private IReadOnlySet<string> Effective => BoardRepos.Effective(_follow, _picked, State.Zoomed);
+
+    private string Caption
+    {
+        get
+        {
+            var n = _lanes.Sum(l => l.Prs.Count);
+            var where = Effective.Count == 0 ? "all Mud repos" : Effective.Count == 1 ? $"in {State.NameOf(Effective.First())}" : $"in {Effective.Count} repos";
+            return $"{n} open, {where}{(_actionable ? ", actionable only" : "")}";
+        }
+    }
+
+    private string PickedText(IReadOnlyList<string> full) =>
+        full.Count == 0 ? "All Mud repos" : string.Join(", ", full.Select(f => State.NameOf(f) ?? f));
+
+    protected override void OnInitialized() => State.Changed += OnChanged;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (State.BoardOpen) await LoadIfNeededAsync();
+    }
+
+    private void OpenChanged(bool open)
+    {
+        if (!open && State.BoardOpen) State.Open(ResearchPanelKind.None);
+    }
+
+    private Task PickAsync(IReadOnlyCollection<string>? values)
+    {
+        _picked = values?.ToHashSet() ?? [];
+        return LoadIfNeededAsync();
+    }
+
+    private Task FollowAsync(bool follow)
+    {
+        _follow = follow;
+        return LoadIfNeededAsync();
+    }
+
+    private Task ActionableAsync(bool actionable)
+    {
+        _actionable = actionable;
+        return LoadIfNeededAsync();
+    }
+
+    private string Key => string.Join("|", Effective.Order(StringComparer.Ordinal)) + (_actionable ? "|A" : "") + "|" + State.Prs.GetHashCode();
+
+    private Task LoadIfNeededAsync() => Key == _loadedKey ? Task.CompletedTask : LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _cts?.Cancel();
+        var cts = _cts = new CancellationTokenSource();
+        var key = Key;
+        _loading = true;
+        _error = null;
+        StateHasChanged();
+        var outcome = await State.Client.PrsAsync(Effective, _actionable, cts.Token);
+        if (cts.IsCancellationRequested) return;
+        _loading = false;
+        _loadedKey = key;
+        if (outcome.Ok)
+        {
+            _lanes = BoardGrouping.Group(outcome.Value!.Prs ?? [], Effective.ToList(), _actionable);
+        }
+        else
+        {
+            _error = outcome.Error;
+            _retryAfter = outcome.RetryAfter;
+            _loadedKey = null;
+        }
+        StateHasChanged();
+    }
+
+    private async Task CardKeyAsync(KeyboardEventArgs e, PrItem pr)
+    {
+        if (e.Key is "Enter" or " ") await OpenDetailAsync(pr);
+    }
+
+    private Task OpenNumberAsync(string repo, int number) =>
+        OpenDetailAsync(State.Pr(repo, number) ?? new PrItem(repo, number, "", "", false, "NONE", "", "", null, null, 0, null, [], null, 0, [], [], 0, null, null, []));
+
+    /// <summary>A card under the pointer or keyboard focus lights its rooms and, while no card is open, shows its conflict lines.</summary>
+    private void Point(PrItem? pr)
+    {
+        State.SetHover(pr?.RoomList);
+        State.SetFocus(pr ?? _detail);
+    }
+
+    private async Task OpenDetailAsync(PrItem? pr)
+    {
+        if (pr is null) return;
+        _detail = pr;
+        _detailError = null;
+        State.SetHover(null);
+        State.SetFocus(pr);
+        StateHasChanged();
+        var outcome = await State.Client.PrAsync(pr.Repo, pr.Number);
+        if (_detail?.Number != pr.Number || _detail.Repo != pr.Repo) return;
+        if (outcome.Ok) _detail = outcome.Value;
+        else _detailError = outcome.Error;
+        StateHasChanged();
+    }
+
+    private void CloseDetail()
+    {
+        _detail = null;
+        _detailError = null;
+        State.SetFocus(null);
+    }
+
+    private Task ShowAsync(PrItem pr) =>
+        State.ShowOnMapAsync($"PR #{pr.Number}", pr.RoomList.Select(r => new LensRoom(pr.Repo, r, 1)));
+
+    private static string RoomNames(PrItem pr) =>
+        pr.RoomNames is { Count: > 0 } names ? string.Join(", ", names) : pr.RoomList.Count == 0 ? "none mapped" : PrRow.Rooms(pr.RoomList.Count);
+
+    private void OnChanged() => InvokeAsync(async () =>
+    {
+        // Follow map: the map moved to another repo, so the board follows it. A map update reloads the board too.
+        if (State.BoardOpen) await LoadIfNeededAsync();
+        StateHasChanged();
+    });
+
+    public void Dispose()
+    {
+        State.Changed -= OnChanged;
+        _cts?.Cancel();
+    }
+}

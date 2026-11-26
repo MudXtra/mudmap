@@ -1,0 +1,61 @@
+@inject ResearchState State
+@* A room is one graphify community. Unfold it to see every member (get_community), not just the most connected few. *@
+@if (RoomIds.Community(Room.Id) is { } community && Repo is not null)
+{
+    <MudExpansionPanels Elevation="0" Outlined Class="mt-4 mm-community">
+        <MudExpansionPanel Text="@($"Full community ({Room.N} code items)")" ExpandedChanged="e => ExpandAsync(e, community)">
+            @if (_busy)
+            {
+                <MudProgressLinear Color="Color.Primary" Indeterminate />
+            }
+            else if (_error is not null)
+            {
+                <ResearchError Error="@_error" RetryAfter="_retryAfter" OnRetry="() => LoadAsync(community)" />
+            }
+            else if (_result is { } r)
+            {
+                <MudText Typo="Typo.body2" Class="mm-code mm-pre mm-community-text">@r.Text</MudText>
+                @if (r.Links is { Count: > 0 } links)
+                {
+                    <ResearchLinks Links="links" Max="20" />
+                }
+            }
+        </MudExpansionPanel>
+    </MudExpansionPanels>
+}
+
+@code {
+    [Parameter, EditorRequired] public Cluster Room { get; set; } = default!;
+    /// <summary>The room's repository, full name.</summary>
+    [Parameter] public string? Repo { get; set; }
+
+    private ResearchResponse? _result;
+    private string? _error;
+    private int? _retryAfter;
+    private bool _busy;
+    private string? _for;
+
+    protected override void OnParametersSet()
+    {
+        if (_for == Room.Id) return;
+        _for = Room.Id;
+        _result = null;
+        _error = null;
+    }
+
+    private Task ExpandAsync(bool expanded, int community) =>
+        expanded && _result is null && !_busy ? LoadAsync(community) : Task.CompletedTask;
+
+    private async Task LoadAsync(int community)
+    {
+        var room = Room.Id;
+        _busy = true;
+        _error = null;
+        var outcome = await State.Client.CallAsync("get_community",
+            new Dictionary<string, object?> { ["community_id"] = community, ["project_path"] = Repo });
+        if (room != Room.Id) return;
+        _busy = false;
+        if (outcome.Ok) _result = outcome.Value;
+        else (_error, _retryAfter) = (outcome.Error, outcome.RetryAfter);
+    }
+}

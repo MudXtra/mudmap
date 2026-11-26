@@ -4,9 +4,9 @@
     var name = MapData.RoomName(Cluster);
     var gh = Repo?.Url.TrimEnd('/');
     <MudStack Row Justify="Justify.SpaceBetween" AlignItems="AlignItems.Start" Wrap="Wrap.NoWrap">
-        <div class="mm-min0">
+        <MudStack Spacing="0" Class="mm-min0">
             <MudText Typo="Typo.h5"><Fit Text="@name" Max="26" /></MudText>
-            <MudText Typo="Typo.body2" Class="mud-text-secondary">
+            <MudText Typo="Typo.body1" Class="mm-quiet">
                 @Cluster.N code items in
                 @if (gh is not null && !string.IsNullOrEmpty(Cluster.Path))
                 {
@@ -27,12 +27,12 @@
                     <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Class="ml-0">@Cluster.TestN test@(Cluster.TestN == 1 ? "" : "s")</MudChip>
                 }
             </MudStack>
-        </div>
+        </MudStack>
         <MudIconButton Icon="@Icons.Material.Filled.Close" Size="Size.Small" aria-label="Close" OnClick="OnClose" />
     </MudStack>
     @if (gh is not null && Cluster.PrNumbers is { Count: > 0 } numbers)
     {
-        <MudText Typo="Typo.overline" Class="d-block mt-3">Pull requests here</MudText>
+        <MudText Typo="Typo.subtitle2" Class="mm-sheet-heading mt-4 mb-1">Pull requests here</MudText>
         <MudStack Row Spacing="1" Wrap="Wrap.Wrap">
             @foreach (var n in numbers)
             {
@@ -40,7 +40,7 @@
             }
         </MudStack>
     }
-    <MudText Typo="Typo.overline" Class="d-block mt-3">Most connected code</MudText>
+    <MudText Typo="Typo.subtitle2" Class="mm-sheet-heading mt-4">Most connected code</MudText>
     <MudList T="string" Dense ReadOnly>
         @foreach (var item in Cluster.Top)
         {
@@ -69,6 +69,10 @@
             <MudDivider />
         }
     </MudList>
+    @if (Research)
+    {
+        <RoomCommunity Room="Cluster" Repo="@Repo?.FullName" />
+    }
     @if (Repo is not null && DocsCatalog.For(Repo.FullName) is { } docs)
     {
         <MudButton Href="@(docs.ApiIndex ?? docs.Docs)" Target="_blank" Variant="Variant.Text" Size="Size.Small" Class="mt-2"
@@ -81,6 +85,8 @@
     /// <summary>The repository the cluster belongs to, for links.</summary>
     [Parameter] public RepoInfo? Repo { get; set; }
     [Parameter] public EventCallback OnClose { get; set; }
+    /// <summary>Offer the room's full graphify community.</summary>
+    [Parameter] public bool Research { get; set; }
 
     /// <summary>"MudButton.OnClick()" searches for "OnClick".</summary>
     private static string Symbol(string item) => item.TrimEnd('(', ')').Split('.')[^1];
